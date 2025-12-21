@@ -18,6 +18,13 @@ body {
     border-radius: 4px;
 }
 
+@media (prefers-color-scheme: dark) {
+    .input-cell:focus {
+        background-color: #374151;
+        color: #ffffff;
+    }
+}
+
 /* Summary display styles */
 .summary-value {
     white-space: nowrap;
