@@ -1,0 +1,67 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+
+/* Base styles */
+body {
+    font-family: 'Inter', sans-serif;
+}
+
+/* Input field styles */
+.input-cell {
+    background-color: transparent;
+    width: 100%;
+    outline: none;
+    padding: 4px;
+}
+
+.input-cell:focus {
+    background-color: #f0f9ff;
+    border-radius: 4px;
+}
+
+/* Summary display styles */
+.summary-value {
+    white-space: nowrap;
+    display: inline-block;
+    line-height: 1.1;
+}
+
+/* Mobile responsive layout for tables */
+@media (max-width: 640px) {
+    #cardsTable thead {
+        display: none;
+    }
+
+    #cardsTable tr {
+        display: block;
+        margin-bottom: 0.75rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+        background-color: #111827;
+    }
+
+    #cardsTable td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.4rem 0.75rem;
+        font-size: 0.875rem;
+        border-bottom: 1px solid #1f2933;
+    }
+
+    #cardsTable td:last-child {
+        border-bottom: none;
+    }
+
+    #cardsTable td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        text-transform: uppercase;
+        color: #9ca3af;
+        font-size: 0.7rem;
+        margin-right: 0.75rem;
+    }
+
+    #cardsTable td[data-label=""]::before {
+        content: "";
+    }
+}
