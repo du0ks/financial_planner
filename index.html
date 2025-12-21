@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personal Finance Tracker</title>
+
+    <!-- PWA meta -->
+    <meta name="theme-color" content="#15803d">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Finance Tracker">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .input-cell {
+            background-color: transparent;
+            width: 100%;
+            outline: none;
+            padding: 4px;
+        }
+        .input-cell:focus {
+            background-color: #f0f9ff;
+            border-radius: 4px;
+        }
+        .summary-value {
+            white-space: nowrap;
+            display: inline-block;
+            line-height: 1.1;
+        }
+
+        /* MOBILE LAYOUT – Credit Cards table as cards on small screens */
+        @media (max-width: 640px) {
+            #cardsTable thead {
+                display: none;
+            }
+            #cardsTable tr {
+                display: block;
+                margin-bottom: 0.75rem;
+                border: 1px solid #e5e7eb;
+                border-radius: 0.5rem;
+                background-color: #111827; /* dark bg for your theme */
+            }
+            #cardsTable td {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 0.4rem 0.75rem;
+                font-size: 0.875rem;
+                border-bottom: 1px solid #1f2933;
+            }
+            #cardsTable td:last-child {
+                border-bottom: none;
+            }
+            #cardsTable td::before {
+                content: attr(data-label);
+                font-weight: 600;
+                text-transform: uppercase;
+                color: #9ca3af;
+                font-size: 0.7rem;
+                margin-right: 0.75rem;
+            }
+            #cardsTable td[data-label=""]::before {
+                content: "";
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 md:p-8">
+
+    <div class="max-w-5xl mx-auto bg-white shadow-xl rounded-lg overflow-hidden">
+        <!-- Header -->
+        <div class="bg-green-700 text-white p-6 flex justify-between items-center flex-wrap gap-4">
+            <div>
+                <h1 class="text-2xl font-bold">
+                    <i class="fa-solid fa-table-cells text-green-300 mr-2"></i>
+                    Financial Tracking Table
+                </h1>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <button onclick="toggleCurrency()" class="bg-green-600 text-white hover:bg-green-500 px-4 py-2 rounded-lg font-bold transition shadow-md flex items-center">
+                    <i class="fa-solid fa-money-bill-wave mr-2"></i>
+                    <span id="currencyLabel">TRY ₺</span>
+                </button>
+                <button onclick="exportToCSV()" class="bg-white text-green-700 hover:bg-green-50 px-4 py-2 rounded-lg font-bold transition shadow-md flex items-center">
+                    <i class="fa-solid fa-download mr-2"></i> Download as Excel (CSV)
+                </button>
+            </div>
+        </div>
+
+        <div class="p-6 space-y-8">
+            
+            <!-- Section 1: Credit Cards -->
+            <div class="bg-white border rounded-lg overflow-hidden shadow-sm">
+                <div class="bg-gray-50 p-4 border-b flex justify-between items-center">
+                    <h2 class="text-lg font-bold text-gray-700">
+                        <i class="fa-regular fa-credit-card mr-2"></i> Credit Cards & Debts
+                    </h2>
+                    <button onclick="addRow('cards')" class="text-green-600 hover:text-green-800 text-sm font-semibold">+ Add Card</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse" id="cardsTable">
+                        <thead>
+                            <tr class="bg-gray-100 text-gray-600 text-sm uppercase">
+                                <th class="p-3 border-b">Card / Account Name</th>
+                                <th class="p-3 border-b w-28">Limit</th>
+                                <th class="p-3 border-b w-32">Current Money</th>
+                                <th class="p-3 border-b w-32">Current Debt</th>
+                                <th class="p-3 border-b w-40">Remaining Limit</th>
+                                <th class="p-3 border-b w-40">Card Net (+ / -)</th>
+                                <th class="p-3 border-b w-10"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="cardsBody">
+                            <!-- Rows will be injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Section 2: Funds / Assets -->
+            <div class="bg-white border rounded-lg overflow-hidden shadow-sm">
+                <div class="bg-gray-50 p-4 border-b flex justify-between items-center">
+                    <h2 class="text-lg font-bold text-gray-700">
+                        <i class="fa-solid fa-sack-dollar mr-2"></i> Assets & Cash
+                    </h2>
+                    <button onclick="addRow('funds')" class="text-blue-600 hover:text-blue-800 text-sm font-semibold">+ Add Account</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse" id="fundsTable">
+                        <thead>
+                            <tr class="bg-gray-100 text-gray-600 text-sm uppercase">
+                                <th class="p-3 border-b">Asset Name (Cash/Bank)</th>
+                                <th class="p-3 border-b w-40">Current Amount</th>
+                                <th class="p-3 border-b w-10"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="fundsBody">
+                            <!-- Rows will be injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Section 3: Other Payments (Debts) -->
+            <div class="bg-white border rounded-lg overflow-hidden shadow-sm">
+                <div class="bg-gray-50 p-4 border-b flex justify-between items-center">
+                    <h2 class="text-lg font-bold text-gray-700">
+                        <i class="fa-solid fa-file-invoice-dollar mr-2"></i> Other Payments (Rent, Tuition, Taxes)
+                    </h2>
+                    <button onclick="addRow('others')" class="text-red-600 hover:text-red-800 text-sm font-semibold">+ Add Payment</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse" id="othersTable">
+                        <thead>
+                            <tr class="bg-gray-100 text-gray-600 text-sm uppercase">
+                                <th class="p-3 border-b">Payment Name</th>
+                                <th class="p-3 border-b w-40">Amount</th>
+                                <th class="p-3 border-b w-10"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="othersBody">
+                            <!-- Rows will be injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Dashboard Summary -->
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mt-8">
+                <div class="bg-red-50 p-4 rounded-lg border border-red-100 flex flex-col">
+                    <p class="text-red-600 text-xs font-bold uppercase text-center">Total Debt</p>
+                    <div class="mt-1 w-full flex items-center justify-center">
+                        <span class="summary-value font-bold text-red-700" id="totalDebtDisplay">0 ₺</span>
+                    </div>
+                </div>
+                <div class="bg-blue-50 p-4 rounded-lg border border-blue-100 flex flex-col">
+                    <p class="text-blue-600 text-xs font-bold uppercase text-center">Total Assets (Cash + Cards)</p>
+                    <div class="mt-1 w-full flex items-center justify-center">
+                        <span class="summary-value font-bold text-blue-700" id="totalCashDisplay">0 ₺</span>
+                    </div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 flex flex-col">
+                    <p class="text-gray-600 text-xs font-bold uppercase text-center">Total Card Limit</p>
+                    <div class="mt-1 w-full flex items-center justify-center">
+                        <span class="summary-value font-bold text-gray-700" id="totalLimitDisplay">0 ₺</span>
+                    </div>
+                </div>
+                <div class="bg-purple-50 p-4 rounded-lg border border-purple-200 flex flex-col">
+                    <p class="text-purple-700 text-xs font-bold uppercase text-center">Overall Credit Card Position</p>
+                    <div class="mt-1 w-full flex items-center justify-center">
+                        <span class="summary-value font-bold" id="ccNetDisplay">0 ₺</span>
+                    </div>
+                    <p class="text-xs mt-2 text-purple-700 text-center" id="ccStatusText">Calculated from all cards.</p>
+                </div>
+                <div class="bg-green-50 p-4 rounded-lg border border-green-200 shadow-sm relative overflow-hidden flex flex-col" id="netStatusCard">
+                    <p class="text-green-800 text-xs font-bold uppercase text-center">Overall Net Position</p>
+                    <div class="mt-1 w-full flex items-center justify-center">
+                        <span class="summary-value font-bold text-green-700" id="netWorthDisplay">0 ₺</span>
+                    </div>
+                    <p class="text-xs mt-2 text-green-600 text-center" id="statusMessage">Calculating...</p>
+                </div>
+            </div>
+
+        </div>
+        
+        <div class="bg-gray-50 p-4 text-center text-xs text-gray-500 border-t">
+            <p>When you change values, your data is automatically <b>saved in your browser</b>. Your data will not be deleted even if you close the page.</p>
+        </div>
+    </div>
+
+    <script>
+        // LocalStorage Keys
+        const STORAGE_KEY = 'financeTracker_local_v1';
+        const SETTINGS_KEY = 'financeTracker_settings_v1';
+
+        // Currency settings (defaults)
+        let currentCurrency = 'TRY';
+        let currentLocale = 'tr-TR';
+
+        function saveSettings() {
+            localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+                currency: currentCurrency,
+                locale: currentLocale
+            }));
+        }
+
+        function loadSettings() {
+            const raw = localStorage.getItem(SETTINGS_KEY);
+            if (!raw) return;
+            try {
+                const s = JSON.parse(raw);
+                if (s.currency === 'UAH') {
+                    currentCurrency = 'UAH';
+                    currentLocale  = 'uk-UA';
+                    document.getElementById('currencyLabel').innerText = 'UAH ₴';
+                } else if (s.currency === 'TRY') {
+                    currentCurrency = 'TRY';
+                    currentLocale  = 'tr-TR';
+                    document.getElementById('currencyLabel').innerText = 'TRY ₺';
+                }
+            } catch (e) {
+                console.error('settings parse error', e);
+            }
+        }
+
+        function formatMoney(amount) {
+            return new Intl.NumberFormat(currentLocale, {
+                style: 'currency',
+                currency: currentCurrency
+            }).format(amount);
+        }
+
+        function toggleCurrency() {
+            if (currentCurrency === 'TRY') {
+                currentCurrency = 'UAH';
+                currentLocale = 'uk-UA';
+                document.getElementById('currencyLabel').innerText = 'UAH ₴';
+            } else {
+                currentCurrency = 'TRY';
+                currentLocale = 'tr-TR';
+                document.getElementById('currencyLabel').innerText = 'TRY ₺';
+            }
+            saveSettings();
+            renderCards();
+            renderFunds();
+            renderOthers();
+        }
+
+        // Load Data from LocalStorage or use Defaults
+        let savedData = localStorage.getItem(STORAGE_KEY);
+        let parsedData = savedData ? JSON.parse(savedData) : null;
+
+        let cardData = parsedData ? parsedData.cards : [
+            { id: 1, name: 'Card A (Main Card)', limit: 15000, money: 2000, debt: 3500 },
+            { id: 2, name: 'Card B (Backup)',    limit: 5000,  money: 0,    debt: 0 },
+            { id: 3, name: 'Card C',             limit: 2500,  money: 500,  debt: 1250 }
+        ];
+
+        // Backward compatibility
+        cardData = cardData.map(c => ({
+            id: c.id,
+            name: c.name,
+            limit: typeof c.limit === 'number' ? c.limit : parseFloat(c.limit) || 0,
+            debt: typeof c.debt === 'number' ? c.debt : parseFloat(c.debt) || 0,
+            money: typeof c.money === 'number' ? c.money : parseFloat(c.money) || 0
+        }));
+
+        let fundData = parsedData ? parsedData.funds : [
+            { id: 101, name: 'Salary Account', amount: 8500 },
+            { id: 102, name: 'Savings Account', amount: 12000 },
+            { id: 103, name: 'Wallet / Cash', amount: 450 }
+        ];
+
+        let otherData = parsedData && parsedData.others ? parsedData.others : [
+            { id: 201, name: 'Rent', amount: 0 },
+            { id: 202, name: 'Dorm / Tuition', amount: 0 }
+        ];
+
+        function saveData() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                cards: cardData,
+                funds: fundData,
+                others: otherData
+            }));
+        }
+
+        // FONT SHRINK
+        function fitTextToContainer(el, maxPx = 26, minPx = 12) {
+            if (!el) return;
+            const parent = el.parentElement;
+            if (!parent) return;
+
+            let size = maxPx;
+            el.style.fontSize = size + 'px';
+
+            while (size > minPx && el.scrollWidth > parent.clientWidth) {
+                size -= 1;
+                el.style.fontSize = size + 'px';
+            }
+        }
+
+        function shrinkSummaryText() {
+            ['totalDebtDisplay','totalCashDisplay','totalLimitDisplay','ccNetDisplay','netWorthDisplay']
+                .forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) fitTextToContainer(el, 26, 12);
+                });
+        }
+
+        // RENDER FUNCTIONS
+        function renderCards() {
+            const tbody = document.getElementById('cardsBody');
+            tbody.innerHTML = '';
+            
+            cardData.forEach((card, index) => {
+                const money = card.money || 0;
+                const remainingLimit = (card.limit || 0) - (card.debt || 0);
+                const cardNet = money - (card.debt || 0);
+
+                const cardNetClass = cardNet < 0
+                    ? 'text-red-600 font-bold'
+                    : cardNet > 0
+                        ? 'text-green-600 font-bold'
+                        : 'text-gray-700';
+
+                const cardNetText = (cardNet > 0 ? '+' : '') + formatMoney(cardNet);
+                const remainingClass = remainingLimit < 0
+                    ? 'text-red-500 font-bold'
+                    : 'text-green-600';
+
+                const row = document.createElement('tr');
+                row.className = 'border-b hover:bg-gray-50 transition';
+                row.innerHTML = `
+                    <td class="p-3" data-label="Card / Account">
+                        <input type="text"
+                               value="${card.name}"
+                               onchange="updateCard(${index}, 'name', this.value)"
+                               class="input-cell font-medium text-gray-800">
+                    </td>
+                    <td class="p-3" data-label="Limit">
+                        <input type="number"
+                               value="${card.limit}"
+                               onchange="updateCard(${index}, 'limit', this.value)"
+                               class="input-cell text-gray-600">
+                    </td>
+                    <td class="p-3" data-label="Current Money">
+                        <input type="number"
+                               value="${money}"
+                               onchange="updateCard(${index}, 'money', this.value)"
+                               class="input-cell text-blue-600 font-semibold">
+                    </td>
+                    <td class="p-3" data-label="Current Debt">
+                        <input type="number"
+                               value="${card.debt}"
+                               onchange="updateCard(${index}, 'debt', this.value)"
+                               class="input-cell text-red-600 font-semibold">
+                    </td>
+                    <td class="p-3 font-mono text-sm ${remainingClass}" data-label="Remaining Limit">
+                        ${formatMoney(remainingLimit)}
+                    </td>
+                    <td class="p-3 font-mono text-sm ${cardNetClass}" data-label="Card Net">
+                        ${cardNetText}
+                    </td>
+                    <td class="p-3 text-right" data-label="">
+                        <button onclick="removeCard(${index})" class="text-gray-400 hover:text-red-500">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+            calculateTotals();
+        }
+
+        function renderFunds() {
+            const tbody = document.getElementById('fundsBody');
+            tbody.innerHTML = '';
+
+            fundData.forEach((fund, index) => {
+                const row = document.createElement('tr');
+                row.className = 'border-b hover:bg-gray-50 transition';
+                row.innerHTML = `
+                    <td class="p-3">
+                        <input type="text"
+                               value="${fund.name}"
+                               onchange="updateFund(${index}, 'name', this.value)"
+                               class="input-cell font-medium text-gray-800">
+                    </td>
+                    <td class="p-3">
+                        <input type="number"
+                               value="${fund.amount}"
+                               oninput="updateFund(${index}, 'amount', this.value)"
+                               class="input-cell text-blue-600 font-semibold">
+                    </td>
+                    <td class="p-3 text-right">
+                        <button onclick="removeFund(${index})" class="text-gray-400 hover:text-red-500">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+            calculateTotals();
+        }
+
+        function renderOthers() {
+            const tbody = document.getElementById('othersBody');
+            tbody.innerHTML = '';
+
+            otherData.forEach((item, index) => {
+                const row = document.createElement('tr');
+                row.className = 'border-b hover:bg-gray-50 transition';
+                row.innerHTML = `
+                    <td class="p-3">
+                        <input type="text"
+                               value="${item.name}"
+                               onchange="updateOther(${index}, 'name', this.value)"
+                               class="input-cell font-medium text-gray-800">
+                    </td>
+                    <td class="p-3">
+                        <input type="number"
+                               value="${item.amount}"
+                               oninput="updateOther(${index}, 'amount', this.value)"
+                               class="input-cell text-red-600 font-semibold">
+                    </td>
+                    <td class="p-3 text-right">
+                        <button onclick="removeOther(${index})" class="text-gray-400 hover:text-red-500">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+            calculateTotals();
+        }
+
+        // UPDATE FUNCTIONS
+        function updateCard(index, field, value) {
+            if (field === 'limit' || field === 'debt' || field === 'money') {
+                cardData[index][field] = parseFloat(value) || 0;
+            } else {
+                cardData[index][field] = value;
+            }
+            renderCards();
+        }
+
+        function updateFund(index, field, value) {
+            if (field === 'amount') {
+                fundData[index][field] = parseFloat(value) || 0;
+            } else {
+                fundData[index][field] = value;
+            }
+            calculateTotals();
+        }
+
+        function updateOther(index, field, value) {
+            if (field === 'amount') {
+                otherData[index][field] = parseFloat(value) || 0;
+            } else {
+                otherData[index][field] = value;
+            }
+            calculateTotals();
+        }
+
+        function addRow(type) {
+            if (type === 'cards') {
+                cardData.push({ id: Date.now(), name: 'New Card', limit: 0, money: 0, debt: 0 });
+                renderCards();
+            } else if (type === 'funds') {
+                fundData.push({ id: Date.now(), name: 'New Account', amount: 0 });
+                renderFunds();
+            } else if (type === 'others') {
+                otherData.push({ id: Date.now(), name: 'New Payment', amount: 0 });
+                renderOthers();
+            }
+        }
+
+        function removeCard(index) {
+            if (confirm('Are you sure you want to delete this card?')) {
+                cardData.splice(index, 1);
+                renderCards();
+            }
+        }
+
+        function removeFund(index) {
+            if (confirm('Are you sure you want to delete this account?')) {
+                fundData.splice(index, 1);
+                renderFunds();
+            }
+        }
+
+        function removeOther(index) {
+            if (confirm('Are you sure you want to delete this payment?')) {
+                otherData.splice(index, 1);
+                renderOthers();
+            }
+        }
+
+        // TOTALS
+        function calculateTotals() {
+            const totalLimit = cardData.reduce((sum, item) => sum + (item.limit || 0), 0);
+
+            const totalCardDebt = cardData.reduce((sum, item) => sum + (item.debt || 0), 0);
+            const totalOtherDebt = otherData.reduce((sum, item) => sum + (item.amount || 0), 0);
+            const totalDebt = totalCardDebt + totalOtherDebt;
+
+            const totalFundCash = fundData.reduce((sum, item) => sum + (item.amount || 0), 0);
+            const totalCardMoney = cardData.reduce((sum, item) => sum + (item.money || 0), 0);
+            const totalAssets = totalFundCash + totalCardMoney;
+
+            const overallNet = totalAssets - totalDebt;
+
+            const ccNet = cardData.reduce(
+                (sum, item) => sum + ((item.money || 0) - (item.debt || 0)),
+                0
+            );
+
+            saveData();
+
+            document.getElementById('totalLimitDisplay').innerText = formatMoney(totalLimit);
+            document.getElementById('totalDebtDisplay').innerText = formatMoney(totalDebt);
+            document.getElementById('totalCashDisplay').innerText = formatMoney(totalAssets);
+
+            const netEl = document.getElementById('netWorthDisplay');
+            const statusCard = document.getElementById('netStatusCard');
+            const statusMsg = document.getElementById('statusMessage');
+
+            netEl.innerText = (overallNet > 0 ? '+' : '') + formatMoney(overallNet);
+
+            if (overallNet >= 0) {
+                statusCard.className = "bg-green-50 p-4 rounded-lg border border-green-200 shadow-sm relative overflow-hidden flex flex-col";
+                netEl.className = "summary-value font-bold text-green-700";
+                statusMsg.innerText = "Status: Positive (You are safe)";
+                statusMsg.className = "text-xs mt-2 text-green-600 text-center";
+            } else {
+                statusCard.className = "bg-red-50 p-4 rounded-lg border border-red-200 shadow-sm relative overflow-hidden flex flex-col";
+                netEl.className = "summary-value font-bold text-red-700";
+                statusMsg.innerText = "Status: Negative (Attention needed)";
+                statusMsg.className = "text-xs mt-2 text-red-600 text-center";
+            }
+
+            const ccNetEl = document.getElementById('ccNetDisplay');
+            const ccStatusText = document.getElementById('ccStatusText');
+
+            ccNetEl.innerText = (ccNet > 0 ? '+' : '') + formatMoney(ccNet);
+            if (ccNet > 0) {
+                ccNetEl.className = "summary-value font-bold text-green-700";
+                ccStatusText.innerText = "Overall positive card position.";
+            } else if (ccNet < 0) {
+                ccNetEl.className = "summary-value font-bold text-red-700";
+                ccStatusText.innerText = "Overall negative card position.";
+            } else {
+                ccNetEl.className = "summary-value font-bold text-gray-700";
+                ccStatusText.innerText = "Cards are balanced (0 net).";
+            }
+
+            shrinkSummaryText();
+        }
+
+        function exportToCSV() {
+            let csvContent = "data:text/csv;charset=utf-8,";
+
+            csvContent += "CATEGORY,NAME,LIMIT/VALUE,DEBT,NET/REMAINING\n";
+
+            cardData.forEach(card => {
+                const remainingLimit = (card.limit || 0) - (card.debt || 0);
+                csvContent += `CREDIT CARD,${card.name},${card.limit || 0},${card.debt || 0},${remainingLimit}\n`;
+            });
+
+            fundData.forEach(fund => {
+                csvContent += `CASH/ASSET,${fund.name},${fund.amount || 0},0,${fund.amount || 0}\n`;
+            });
+
+            const totalCardDebt = cardData.reduce((sum, item) => sum + (item.debt || 0), 0);
+            const totalOtherDebt = otherData.reduce((sum, item) => sum + (item.amount || 0), 0);
+            const totalDebt = totalCardDebt + totalOtherDebt;
+
+            const totalFundCash = fundData.reduce((sum, item) => sum + (item.amount || 0), 0);
+            const totalCardMoney = cardData.reduce((sum, item) => sum + (item.money || 0), 0);
+            const totalAssets = totalFundCash + totalCardMoney;
+            const overallNet = totalAssets - totalDebt;
+
+            csvContent += `,,,\n`;
+            csvContent += `SUMMARY,TOTAL ASSETS,${totalAssets},,\n`;
+            csvContent += `SUMMARY,TOTAL DEBT,,${totalDebt},\n`;
+            csvContent += `SUMMARY,OVERALL NET POSITION,,,${overallNet}\n`;
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "finance_table.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Service worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker
+                    .register('./service-worker.js')
+                    .catch(console.error);
+            });
+        }
+
+        // INIT: load settings first, then render
+        loadSettings();
+        renderCards();
+        renderFunds();
+        renderOthers();
+    </script>
+</body>
+</html>
+
