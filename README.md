@@ -18,7 +18,6 @@ financial_planner/
 │   └── pwa.js              # PWA setup
 ├── service-worker.js       # Offline support
 ├── manifest.webmanifest    # PWA manifest
-└── [docs]                  # 8+ detailed markdown guides
 ```
 
 ## 🧩 Key Features
