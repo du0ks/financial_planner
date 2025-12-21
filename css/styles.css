@@ -13,6 +13,17 @@ body {
     padding: 4px;
 }
 
+/* Hide number input spinners */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input[type="number"] {
+    -moz-appearance: textfield;
+}
+
 .input-cell:focus {
     background-color: #f0f9ff;
     border-radius: 4px;
