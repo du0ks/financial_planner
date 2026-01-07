@@ -1,6 +1,6 @@
 import React from 'react';
 import { formatMoney } from '../utils/format';
-import { TrendingUp, TrendingDown, CreditCard, Wallet, DollarSign } from 'lucide-react';
+import { TrendingUp, TrendingDown, CreditCard, Wallet, DollarSign, Coins } from 'lucide-react';
 
 export default function SummaryCards({ totals, currency }) {
     const { totalLimit, totalDebt, totalAssets, overallNet, ccNet } = totals;

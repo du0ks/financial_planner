@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import useLocalStorage from './useLocalStorage';
 import { generateUUID } from '../utils/uuid';
 import { supabase } from '../utils/supabase';
@@ -25,6 +25,10 @@ export default function useFinanceData(session) {
     const [rawOthers, setOthers] = useLocalStorage('finance_others_v3', DEFAULT_DATA.others);
     const [currency, setCurrency] = useLocalStorage('finance_currency_v3', 'TRY');
     const [history, setHistory] = useLocalStorage('finance_history_v3', []);
+    const [goldGrams, setGoldGrams] = useLocalStorage('finance_gold_v3', 0);
+    const [goldPrice, setGoldPrice] = useState(0); // USD per gram
+    const [goldChanges, setGoldChanges] = useState({ d1: 0, w1: 0, m1: 0, y1: 0 });
+    const [exchangeRates, setExchangeRates] = useState({ TRY: 1, UAH: 1, EUR: 1, USD: 1 });
 
     // Sync from Supabase on Login
     useEffect(() => {
@@ -44,6 +48,7 @@ export default function useFinanceData(session) {
                 setOthers(data.others);
                 setCurrency(data.currency);
                 setHistory(data.history);
+                setGoldGrams(data.gold_grams || 0);
                 console.log("Cloud sync complete: Data loaded from Supabase");
             } else if (error && error.code === 'PGRST116') {
                 // No record yet, push local data to cloud
@@ -54,6 +59,51 @@ export default function useFinanceData(session) {
 
         fetchData();
     }, [session]);
+
+    // Fetch Market Data (Gold & FX)
+    useEffect(() => {
+        const fetchMarketData = async () => {
+            try {
+                // Fetch Gold Price (XAU/USD)
+                // Note: The API returns price per Troy Ounce (31.1035g)
+                const goldRes = await fetch('https://api.gold-api.com/price/XAU');
+                const goldData = await goldRes.json();
+                if (goldData.price) {
+                    setGoldPrice(goldData.price / 31.1035);
+                }
+
+                // Fetch FX Rates
+                const fxRes = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+                const fxData = await fxRes.json();
+                if (fxData.rates) {
+                    setExchangeRates({
+                        TRY: fxData.rates.TRY,
+                        UAH: fxData.rates.UAH,
+                        EUR: fxData.rates.EUR,
+                        USD: 1
+                    });
+                }
+
+                // Fetch Gold Performance Percentages (using PAXG as proxy for XAU)
+                const perfRes = await fetch('https://api.coingecko.com/api/v3/coins/pax-gold?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false');
+                const perfData = await perfRes.json();
+                if (perfData.market_data) {
+                    setGoldChanges({
+                        d1: perfData.market_data.price_change_percentage_24h || 0,
+                        w1: perfData.market_data.price_change_percentage_7d || 0,
+                        m1: perfData.market_data.price_change_percentage_30d || 0,
+                        y1: perfData.market_data.price_change_percentage_1y || 0
+                    });
+                }
+            } catch (err) {
+                console.error("Market data fetch failed:", err);
+            }
+        };
+
+        fetchMarketData();
+        const interval = setInterval(fetchMarketData, 1000 * 60 * 15); // Refresh every 15 mins
+        return () => clearInterval(interval);
+    }, []);
 
     // Push to Supabase on changes (throttled)
     const pushToCloud = useCallback(async () => {
@@ -66,6 +116,7 @@ export default function useFinanceData(session) {
             others: rawOthers,
             currency: currency,
             history: history,
+            gold_grams: goldGrams,
             updated_at: new Date().toISOString()
         };
 
@@ -74,7 +125,7 @@ export default function useFinanceData(session) {
             .upsert(payload, { onConflict: 'user_id' });
 
         if (error) console.error("Cloud push failed:", error);
-    }, [session, rawCards, rawFunds, rawOthers, currency, history]);
+    }, [session, rawCards, rawFunds, rawOthers, currency, history, goldGrams]);
 
     // Track changes and push
     useEffect(() => {
@@ -83,7 +134,7 @@ export default function useFinanceData(session) {
         }, 2000); // 2 second debounce
 
         return () => clearTimeout(timer);
-    }, [rawCards, rawFunds, rawOthers, currency, history, pushToCloud]);
+    }, [rawCards, rawFunds, rawOthers, currency, history, goldGrams, pushToCloud]);
 
     const toggleCurrency = () => {
         const currencies = ['TRY', 'UAH', 'EUR', 'USD'];
@@ -139,7 +190,12 @@ export default function useFinanceData(session) {
 
     const totalFundCash = funds.reduce((sum, f) => sum + (parseFloat(f.amount) || 0), 0);
     const totalCardMoney = cards.reduce((sum, c) => sum + (parseFloat(c.money) || 0), 0);
-    const totalAssets = totalFundCash + totalCardMoney;
+
+    // Gold Value Calculation (Keep separate from main totals as per user request)
+    const currentGoldRate = goldPrice * (exchangeRates[currency] || 1);
+    const goldValue = goldGrams * currentGoldRate;
+
+    const totalAssets = totalFundCash + totalCardMoney; // Gold excluded from main dashboard assets
     const overallNet = totalAssets - totalDebt;
     const ccNet = cards.reduce((sum, c) => sum + ((parseFloat(c.money) || 0) - (parseFloat(c.debt) || 0)), 0);
 
@@ -181,6 +237,12 @@ export default function useFinanceData(session) {
         cards, funds, others,
         currency, toggleCurrency,
         history: historyList,
+        goldGrams,
+        setGoldGrams,
+        goldPricePerGram: goldPrice * (exchangeRates[currency] || 1),
+        goldValue,
+        goldChanges,
+        exchangeRates,
         saveSnapshot, deleteSnapshot,
         addCard, updateCard, removeCard,
         addFund, updateFund, removeFund,
@@ -193,7 +255,9 @@ export default function useFinanceData(session) {
             ccNet,
             velocity,
             momentum,
-            allTimeHigh
+            allTimeHigh,
+            goldValue,
+            goldGrams
         }
     };
 }

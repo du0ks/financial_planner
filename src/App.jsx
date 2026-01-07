@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import HistoryView from './pages/HistoryView';
+import InvestmentsView from './pages/InvestmentsView';
 import { SettingsView } from './pages/Placeholders';
 import AuthView from './pages/AuthView';
 import useFinanceData from './hooks/useFinanceData';
@@ -48,6 +49,8 @@ function App() {
         switch (activeTab) {
             case 'dashboard':
                 return <Dashboard data={financeData} />;
+            case 'investments':
+                return <InvestmentsView data={financeData} />;
             case 'history':
                 return <HistoryView data={financeData} />;
             case 'settings':
