@@ -53,10 +53,10 @@ export default function SummaryCards({ totals, currency }) {
             />
 
             {/* Credit Card Net */}
-            <div className="lg:col-span-2 bg-white dark:bg-gray-900 rounded-[32px] p-4 md:p-5 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col hover:border-purple-500/20 transition-all group">
-                <div className="flex items-center justify-between mb-2">
+            <div className="lg:col-span-2 bg-white dark:bg-gray-900 rounded-[32px] p-4 md:p-5 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center text-center md:items-start md:text-left hover:border-purple-500/20 transition-all group relative">
+                <div className="w-full flex items-center justify-center md:justify-between mb-2">
                     <p className="text-gray-400 text-[10px] font-black uppercase tracking-[0.2em]">Card Position</p>
-                    <div className="p-1.5 bg-purple-500/10 rounded-lg group-hover:scale-110 transition-transform">
+                    <div className="absolute top-4 right-4 md:static p-1.5 bg-purple-500/10 rounded-lg group-hover:scale-110 transition-transform">
                         <CreditCard className="text-purple-500" size={14} />
                     </div>
                 </div>
@@ -72,10 +72,10 @@ export default function SummaryCards({ totals, currency }) {
 function StatCard({ label, amount, currency, icon, isNegative, bgClass }) {
     const formattedValue = formatMoney(amount, currency);
     return (
-        <div className={`${bgClass} rounded-[32px] p-4 md:p-5 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col hover:shadow-md transition-all group`}>
-            <div className="flex items-center justify-between mb-2">
+        <div className={`${bgClass} rounded-[32px] p-4 md:p-5 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center text-center md:items-start md:text-left hover:shadow-md transition-all group relative`}>
+            <div className="w-full flex items-center justify-center md:justify-between mb-2">
                 <p className="text-gray-400 text-[10px] font-black uppercase tracking-[0.2em]">{label}</p>
-                <div className={`p-2 rounded-xl group-hover:scale-110 transition-transform ${isNegative ? 'bg-red-500/10' : 'bg-blue-500/10'}`}>
+                <div className={`absolute top-4 right-4 md:static p-2 rounded-xl group-hover:scale-110 transition-transform ${isNegative ? 'bg-red-500/10' : 'bg-blue-500/10'}`}>
                     {icon}
                 </div>
             </div>
