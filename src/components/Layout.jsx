@@ -1,74 +1,68 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, History, Settings, Table2, Banknote, Download } from 'lucide-react';
+import { LayoutDashboard, History, Settings, Wallet, Banknote, Download } from 'lucide-react';
 
 export default function Layout({ children, activeTab, onTabChange }) {
     return (
-        <div className="bg-gray-100 dark:bg-gray-900 min-h-screen p-4 md:p-8 text-gray-900 dark:text-gray-100 font-sans">
-            <div className="max-w-5xl mx-auto bg-white dark:bg-gray-800 shadow-xl rounded-lg overflow-hidden flex flex-col min-h-[85vh]">
+        <div className="font-sans text-gray-900 dark:text-gray-100 min-h-screen flex flex-col bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-black transition-colors duration-500">
 
-                {/* Header */}
-                <div className="bg-green-700 dark:bg-green-900 text-white p-6 flex justify-between items-center flex-wrap gap-4">
-                    <div>
-                        <h1 className="text-2xl font-bold flex items-center">
-                            <Table2 className="text-green-300 mr-2" />
-                            Financial Tracking
+            {/* Mobile-First Header */}
+            <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md sticky top-0 z-50 border-b border-gray-200 dark:border-gray-800 shadow-sm">
+                <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="bg-gradient-to-tr from-green-500 to-emerald-400 p-2 rounded-xl shadow-lg shadow-green-500/20">
+                            <Wallet className="text-white w-6 h-6" />
+                        </div>
+                        <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400">
+                            Prosperity
                         </h1>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                        <button className="bg-green-600 dark:bg-green-800 text-white hover:bg-green-500 dark:hover:bg-green-700 px-4 py-2 rounded-lg font-bold transition shadow-md flex items-center">
-                            <Banknote className="mr-2" size={18} />
-                            <span>TRY ₺</span>
-                        </button>
-                        <button className="bg-white dark:bg-gray-700 text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-gray-600 px-4 py-2 rounded-lg font-bold transition shadow-md flex items-center">
-                            <Download className="mr-2" size={18} />
-                            <span>Export</span>
+
+                    <div className="flex items-center gap-2">
+                        <button className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition">
+                            <Banknote className="w-5 h-5 text-green-600 dark:text-green-400" />
                         </button>
                     </div>
                 </div>
 
-                {/* Navigation */}
-                <div className="bg-green-600 dark:bg-green-800 text-green-100 flex overflow-x-auto text-sm font-medium">
-                    <NavButton
+                {/* Navigation Tabs (Scrollable on mobile) */}
+                <div className="max-w-6xl mx-auto px-4 flex overflow-x-auto gap-6 text-sm font-medium no-scrollbar">
+                    <NavTab
                         active={activeTab === 'dashboard'}
                         onClick={() => onTabChange('dashboard')}
-                        icon={<LayoutDashboard size={18} />}
-                        label="Dashboard"
+                        label="Overview"
                     />
-                    <NavButton
+                    <NavTab
                         active={activeTab === 'history'}
                         onClick={() => onTabChange('history')}
-                        icon={<History size={18} />}
                         label="History"
                     />
-                    <NavButton
+                    <NavTab
                         active={activeTab === 'settings'}
                         onClick={() => onTabChange('settings')}
-                        icon={<Settings size={18} />}
                         label="Settings"
                     />
                 </div>
-
-                {/* Content Area */}
-                <div className="p-6 flex-grow relative overflow-y-auto">
-                    {children}
-                </div>
-
-                {/* Footer */}
-                <div className="bg-gray-50 dark:bg-gray-800 p-4 text-center text-xs text-gray-500 dark:text-gray-400 border-t dark:border-gray-700">
-                    <p>Data is automatically saved to your browser.</p>
-                </div>
             </div>
+
+            {/* Main Content */}
+            <main className="flex-1 max-w-6xl w-full mx-auto p-4 md:p-6 lg:p-8 animate-fade-in">
+                {children}
+            </main>
+
         </div>
     );
 }
 
-function NavButton({ active, onClick, icon, label }) {
+function NavTab({ active, onClick, label }) {
     return (
         <button
             onClick={onClick}
-            className={`flex-1 py-3 px-4 hover:bg-green-500 dark:hover:bg-green-700 transition text-center flex justify-center items-center border-b-4 ${active ? 'border-white dark:border-green-200' : 'border-transparent opacity-80'}`}
+            className={`py-3 border-b-2 transition-all duration-300 whitespace-nowrap ${active
+                    ? 'border-green-500 text-green-600 dark:text-green-400 font-semibold'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                }`}
         >
-            <span className="mr-2">{icon}</span> {label}
+            {label}
         </button>
     )
 }
