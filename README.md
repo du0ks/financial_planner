@@ -1,70 +1,16 @@
-# Financial Planner - Project Overview
+# React + Vite
 
-## 🚀 What is this?
-A modern, modular, and scalable personal finance tracker web app. All code is cleanly separated into HTML, CSS, and JavaScript modules, with full PWA support and comprehensive documentation.
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-## 📁 Project Structure
-```
-financial_planner/
-├── index.html              # Clean HTML markup
-├── css/styles.css          # All custom CSS styles
-├── js/                     # Modular JavaScript (7 files)
-│   ├── app.js              # App initialization
-│   ├── storage.js          # Data persistence
-│   ├── currency.js         # Currency handling
-│   ├── data.js             # CRUD operations
-│   ├── ui.js               # DOM rendering
-│   ├── export.js           # CSV export
-│   └── pwa.js              # PWA setup
-├── service-worker.js       # Offline support
-├── manifest.webmanifest    # PWA manifest
-```
+Currently, two official plugins are available:
 
-## 🧩 Key Features
-- Modular code: each file has a single responsibility
-- Clean, readable, and maintainable structure
-- Easy to add new features (just add a new JS module)
-- Responsive design, mobile-friendly
-- PWA: works offline, installable
-- Data persists in localStorage
-- Currency toggle (TRY/UAH)
-- CSV/Excel export
-- All features fully tested and verified
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
 
-## 🛠️ How to Use
-1. Open `index.html` in your browser
-2. Use the app as normal (all data/features preserved)
-3. To add features: create a new JS file in `js/`, link it in `index.html`, and use modular patterns
+## React Compiler
 
-## 📝 Module Responsibilities (Short)
-- **storage.js**: Load/save data, manage settings
-- **currency.js**: Format and toggle currency
-- **data.js**: CRUD for cards, funds, payments
-- **ui.js**: Render tables and dashboard
-- **export.js**: Export all data to CSV
-- **pwa.js**: Register service worker
-- **app.js**: Initialize everything
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
-## 📚 Documentation
-- All design, architecture, and usage details are in the markdown files in the project root (see `PROJECT_STRUCTURE.md`, `DEVELOPER_GUIDE.md`, etc.)
+## Expanding the ESLint configuration
 
-## 🏆 Why this structure?
-- **Maintainable:** Easy to find and update code
-- **Scalable:** Add new features without clutter
-- **Testable:** Each module can be tested alone
-- **Professional:** Follows best practices
-- **Ready for growth:** Analytics, budgets, investments, sync, and more can be added easily
-
-## ✅ Refactoring Highlights
-- HTML reduced from 641 to 177 lines
-- CSS and JS fully separated
-- 7 focused JS modules
-- 8+ documentation files
-- All features preserved, no data loss
-- Production-ready, enterprise quality
-
----
-
-**Start building awesome features!**
-
-*Refactored: December 2025*
+If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
