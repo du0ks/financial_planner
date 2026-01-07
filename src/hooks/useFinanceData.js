@@ -18,9 +18,14 @@ const DEFAULT_DATA = {
 };
 
 export default function useFinanceData() {
-    const [cards, setCards] = useLocalStorage('finance_cards_v2', DEFAULT_DATA.cards);
-    const [funds, setFunds] = useLocalStorage('finance_funds_v2', DEFAULT_DATA.funds);
-    const [others, setOthers] = useLocalStorage('finance_others_v2', DEFAULT_DATA.others);
+    const [rawCards, setCards] = useLocalStorage('finance_cards_v2', DEFAULT_DATA.cards);
+    const [rawFunds, setFunds] = useLocalStorage('finance_funds_v2', DEFAULT_DATA.funds);
+    const [rawOthers, setOthers] = useLocalStorage('finance_others_v2', DEFAULT_DATA.others);
+
+    // Ensure they are arrays
+    const cards = Array.isArray(rawCards) ? rawCards : DEFAULT_DATA.cards;
+    const funds = Array.isArray(rawFunds) ? rawFunds : DEFAULT_DATA.funds;
+    const others = Array.isArray(rawOthers) ? rawOthers : DEFAULT_DATA.others;
 
     // CRUD for Cards
     const addCard = () => {

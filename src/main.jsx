@@ -3,7 +3,8 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 
-// Error Boundary to catch mobile crashes
+console.log("main.jsx: Execution started");
+
 class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
@@ -11,22 +12,20 @@ class ErrorBoundary extends Component {
   }
 
   static getDerivedStateFromError(error) {
+    console.error("ErrorBoundary: Caught error", error);
     return { hasError: true, error };
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error("Uncaught error:", error, errorInfo);
+    console.error("ErrorBoundary: componentDidCatch", error, errorInfo);
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="p-8 text-center text-red-600">
-          <h1 className="text-xl font-bold mb-4">Something went wrong</h1>
-          <p className="mb-4">Please try refreshing the page.</p>
-          <pre className="bg-gray-100 p-2 rounded text-xs overflow-auto text-left">
-            {this.state.error?.toString()}
-          </pre>
+        <div style={{ padding: '20px', color: 'red' }}>
+          <h1>Something went wrong.</h1>
+          <pre>{this.state.error?.toString()}</pre>
         </div>
       );
     }
@@ -34,21 +33,17 @@ class ErrorBoundary extends Component {
   }
 }
 
-// Unregister legacy service workers from the vanilla version
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(function (registrations) {
-    for (let registration of registrations) {
-      // If the SW is NOT the new vite-plugin-pwa one (you can check scope or scriptURL if needed)
-      // For now, let's just assume we want the new one to take over.
-      // The new one will register itself via virtual:pwa-register
-    }
-  });
+const rootElement = document.getElementById('root');
+if (!rootElement) {
+  console.error("main.jsx: Root element not found!");
+} else {
+  console.log("main.jsx: Root element found, rendering...");
+  createRoot(rootElement).render(
+    <StrictMode>
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
+    </StrictMode>
+  );
+  console.log("main.jsx: Render called");
 }
-
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
-  </StrictMode>,
-)

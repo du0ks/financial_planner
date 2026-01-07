@@ -5,10 +5,20 @@ import { HistoryView, SettingsView } from './pages/Placeholders';
 import useFinanceData from './hooks/useFinanceData';
 
 function App() {
+    console.log("App.jsx: Rendering started");
     const [activeTab, setActiveTab] = useState('dashboard');
-    const financeData = useFinanceData();
+
+    let financeData;
+    try {
+        financeData = useFinanceData();
+        console.log("App.jsx: Hooks loaded successfully");
+    } catch (e) {
+        console.error("App.jsx: Error in useFinanceData hook", e);
+        throw e;
+    }
 
     const renderContent = () => {
+        console.log("App.jsx: Rendering content for tab:", activeTab);
         switch (activeTab) {
             case 'dashboard':
                 return <Dashboard data={financeData} />;
