@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { LayoutDashboard, History, Settings, Wallet, Banknote, Download } from 'lucide-react';
+import React from 'react';
+import { Wallet, Banknote } from 'lucide-react';
 
 export default function Layout({ children, activeTab, onTabChange }) {
     return (
@@ -24,7 +24,7 @@ export default function Layout({ children, activeTab, onTabChange }) {
                     </div>
                 </div>
 
-                {/* Navigation Tabs (Scrollable on mobile) */}
+                {/* Navigation Tabs */}
                 <div className="max-w-6xl mx-auto px-4 flex overflow-x-auto gap-6 text-sm font-medium no-scrollbar">
                     <NavTab
                         active={activeTab === 'dashboard'}
