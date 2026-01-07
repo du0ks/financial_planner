@@ -118,6 +118,28 @@ export default function useFinanceData() {
         setHistory(historyList.filter(s => s.id !== id));
     };
 
+    // Advanced Stats
+    const sortedHistory = [...historyList].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    // velocity: growth/day since last snapshot
+    let velocity = 0;
+    if (historyList.length >= 1) {
+        const lastSnap = historyList[0];
+        const days = Math.max((new Date() - new Date(lastSnap.date)) / (1000 * 60 * 60 * 24), 0.01);
+        velocity = (overallNet - lastSnap.overallNet) / days;
+    }
+
+    // momentum: avg growth/day since beginning
+    let momentum = 0;
+    if (sortedHistory.length >= 1) {
+        const firstSnap = sortedHistory[0];
+        const days = Math.max((new Date() - new Date(firstSnap.date)) / (1000 * 60 * 60 * 24), 0.01);
+        momentum = (overallNet - firstSnap.overallNet) / days;
+    }
+
+    // ATH: All Time High
+    const allTimeHigh = Math.max(overallNet, ...historyList.map(s => s.overallNet));
+
     return {
         cards, funds, others,
         currency, toggleCurrency,
@@ -131,7 +153,10 @@ export default function useFinanceData() {
             totalDebt,
             totalAssets,
             overallNet,
-            ccNet
+            ccNet,
+            velocity,
+            momentum,
+            allTimeHigh
         }
     };
 }

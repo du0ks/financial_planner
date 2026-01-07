@@ -1,7 +1,20 @@
 import React, { Component, StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { registerSW } from 'virtual:pwa-register'
 import './index.css'
 import App from './App.jsx'
+
+// Register PWA Service Worker
+const updateSW = registerSW({
+  onNeedRefresh() {
+    if (confirm('New content available. Reload?')) {
+      updateSW(true);
+    }
+  },
+  onOfflineReady() {
+    console.log('App ready to work offline');
+  },
+});
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -36,15 +49,6 @@ class ErrorBoundary extends Component {
 const rootElement = document.getElementById('root');
 
 if (rootElement) {
-  // Clear any old service workers from vanilla JS version
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then(registrations => {
-      for (let registration of registrations) {
-        registration.unregister();
-      }
-    });
-  }
-
   createRoot(rootElement).render(
     <StrictMode>
       <ErrorBoundary>
