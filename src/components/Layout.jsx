@@ -1,7 +1,9 @@
-import React from 'react';
-import { Wallet, Banknote } from 'lucide-react';
+import { Wallet, Banknote, LogOut, User } from 'lucide-react';
+import { supabase } from '../utils/supabase';
 
-export default function Layout({ children, activeTab, onTabChange, currency, onToggleCurrency }) {
+export default function Layout({ children, activeTab, onTabChange, currency, onToggleCurrency, userEmail }) {
+    const handleLogout = () => supabase.auth.signOut();
+
     return (
         <div className="font-sans text-gray-900 dark:text-gray-100 min-h-screen flex flex-col bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-black transition-colors duration-500">
 
@@ -17,13 +19,26 @@ export default function Layout({ children, activeTab, onTabChange, currency, onT
                         </h1>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
+                        <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800">
+                            <User size={14} className="text-gray-400" />
+                            <span className="text-xs font-medium text-gray-500">{userEmail}</span>
+                        </div>
+
                         <button
                             onClick={onToggleCurrency}
                             className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition font-mono font-bold text-sm text-green-600 dark:text-green-400 border border-transparent active:scale-95"
                         >
                             <Banknote className="w-4 h-4" />
                             <span>{currency}</span>
+                        </button>
+
+                        <button
+                            onClick={handleLogout}
+                            className="p-2 rounded-full hover:bg-red-50 dark:hover:bg-red-500/10 text-gray-400 hover:text-red-500 transition-colors"
+                            title="Sign Out"
+                        >
+                            <LogOut size={18} />
                         </button>
                     </div>
                 </div>
