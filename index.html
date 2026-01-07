@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,13 +15,14 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Finance Tracker">
 
-    <!-- External libraries -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    
+    <!-- Local Libraries -->
+    <link rel="stylesheet" href="css/vendor/tailwind.min.css">
+    <link href="css/vendor/fontawesome/all.min.css" rel="stylesheet">
+
     <!-- Custom styles -->
     <link rel="stylesheet" href="css/styles.css">
 </head>
+
 <body class="bg-gray-100 dark:bg-gray-900 min-h-screen p-4 md:p-8 text-gray-900 dark:text-gray-100">
 
     <div class="max-w-5xl mx-auto bg-white dark:bg-gray-800 shadow-xl rounded-lg overflow-hidden">
@@ -33,134 +35,211 @@
                 </h1>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-                <button onclick="toggleCurrency()" class="bg-green-600 dark:bg-green-800 text-white hover:bg-green-500 dark:hover:bg-green-700 px-4 py-2 rounded-lg font-bold transition shadow-md flex items-center">
+                <button onclick="toggleCurrency()"
+                    class="bg-green-600 dark:bg-green-800 text-white hover:bg-green-500 dark:hover:bg-green-700 px-4 py-2 rounded-lg font-bold transition shadow-md flex items-center">
                     <i class="fa-solid fa-money-bill-wave mr-2"></i>
                     <span id="currencyLabel">TRY ₺</span>
                 </button>
-                <button onclick="exportToCSV()" class="bg-white dark:bg-gray-700 text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-gray-600 px-4 py-2 rounded-lg font-bold transition shadow-md flex items-center">
+                <button onclick="exportToCSV()"
+                    class="bg-white dark:bg-gray-700 text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-gray-600 px-4 py-2 rounded-lg font-bold transition shadow-md flex items-center">
                     <i class="fa-solid fa-download mr-2"></i> Download as Excel (CSV)
                 </button>
             </div>
         </div>
 
-        <div class="p-6 space-y-8">
-            
-            <!-- Section 1: Credit Cards -->
-            <div class="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg overflow-hidden shadow-sm">
-                <div class="bg-gray-50 dark:bg-gray-700 p-4 border-b dark:border-gray-600 flex justify-between items-center">
-                    <h2 class="text-lg font-bold text-gray-700 dark:text-gray-200">
-                        <i class="fa-regular fa-credit-card mr-2"></i> Credit Cards & Debts
-                    </h2>
-                    <button onclick="addRow('cards')" class="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 text-sm font-semibold">+ Add Card</button>
+        <!-- Navigation -->
+        <div class="bg-green-600 dark:bg-green-800 text-green-100 flex overflow-x-auto text-sm font-medium">
+            <button onclick="switchView('dashboard')"
+                class="flex-1 py-3 px-4 hover:bg-green-500 dark:hover:bg-green-700 transition text-center border-b-4 border-white dark:border-green-200"
+                id="nav-dashboard">
+                <i class="fa-solid fa-chart-pie mr-2"></i> Dashboard
+            </button>
+            <button onclick="switchView('history')"
+                class="flex-1 py-3 px-4 hover:bg-green-500 dark:hover:bg-green-700 transition text-center border-b-4 border-transparent opacity-80"
+                id="nav-history">
+                <i class="fa-solid fa-clock-rotate-left mr-2"></i> History
+            </button>
+            <button onclick="switchView('settings')"
+                class="flex-1 py-3 px-4 hover:bg-green-500 dark:hover:bg-green-700 transition text-center border-b-4 border-transparent opacity-80"
+                id="nav-settings">
+                <i class="fa-solid fa-gear mr-2"></i> Settings
+            </button>
+        </div>
+
+        <!-- Views Container -->
+        <div class="p-6 relative min-h-[500px]">
+
+            <!-- View: Dashboard -->
+            <div id="view-dashboard" class="view-section space-y-8 animate-fade-in">
+
+                <!-- Section 1: Credit Cards -->
+                <div class="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg overflow-hidden shadow-sm">
+                    <div
+                        class="bg-gray-50 dark:bg-gray-700 p-4 border-b dark:border-gray-600 flex justify-between items-center">
+                        <h2 class="text-lg font-bold text-gray-700 dark:text-gray-200">
+                            <i class="fa-regular fa-credit-card mr-2"></i> Credit Cards & Debts
+                        </h2>
+                        <button onclick="addRow('cards')"
+                            class="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 text-sm font-semibold">+
+                            Add Card</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse" id="cardsTable">
+                            <thead>
+                                <tr
+                                    class="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm uppercase">
+                                    <th class="p-3 border-b dark:border-gray-600">Card / Account Name</th>
+                                    <th class="p-3 border-b dark:border-gray-600 w-28">Limit</th>
+                                    <th class="p-3 border-b dark:border-gray-600 w-32">Current Money</th>
+                                    <th class="p-3 border-b dark:border-gray-600 w-32">Current Debt</th>
+                                    <th class="p-3 border-b dark:border-gray-600 w-40">Remaining Limit</th>
+                                    <th class="p-3 border-b dark:border-gray-600 w-40">Card Net (+ / -)</th>
+                                    <th class="p-3 border-b dark:border-gray-600 w-10"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="cardsBody">
+                                <!-- Rows will be injected by JS -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse" id="cardsTable">
-                        <thead>
-                            <tr class="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm uppercase">
-                                <th class="p-3 border-b dark:border-gray-600">Card / Account Name</th>
-                                <th class="p-3 border-b dark:border-gray-600 w-28">Limit</th>
-                                <th class="p-3 border-b dark:border-gray-600 w-32">Current Money</th>
-                                <th class="p-3 border-b dark:border-gray-600 w-32">Current Debt</th>
-                                <th class="p-3 border-b dark:border-gray-600 w-40">Remaining Limit</th>
-                                <th class="p-3 border-b dark:border-gray-600 w-40">Card Net (+ / -)</th>
-                                <th class="p-3 border-b dark:border-gray-600 w-10"></th>
-                            </tr>
-                        </thead>
-                        <tbody id="cardsBody">
-                            <!-- Rows will be injected by JS -->
-                        </tbody>
-                    </table>
+
+                <!-- Section 2: Funds / Assets -->
+                <div class="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg overflow-hidden shadow-sm">
+                    <div
+                        class="bg-gray-50 dark:bg-gray-700 p-4 border-b dark:border-gray-600 flex justify-between items-center">
+                        <h2 class="text-lg font-bold text-gray-700 dark:text-gray-200">
+                            <i class="fa-solid fa-sack-dollar mr-2"></i> Assets & Cash
+                        </h2>
+                        <button onclick="addRow('funds')"
+                            class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-semibold">+
+                            Add Account</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse" id="fundsTable">
+                            <thead>
+                                <tr
+                                    class="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm uppercase">
+                                    <th class="p-3 border-b dark:border-gray-600">Asset Name (Cash/Bank)</th>
+                                    <th class="p-3 border-b dark:border-gray-600 w-40">Current Amount</th>
+                                    <th class="p-3 border-b dark:border-gray-600 w-10"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="fundsBody">
+                                <!-- Rows will be injected by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Section 3: Other Payments (Debts) -->
+                <div class="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg overflow-hidden shadow-sm">
+                    <div
+                        class="bg-gray-50 dark:bg-gray-700 p-4 border-b dark:border-gray-600 flex justify-between items-center">
+                        <h2 class="text-lg font-bold text-gray-700 dark:text-gray-200">
+                            <i class="fa-solid fa-file-invoice-dollar mr-2"></i> Other Payments (Rent, Tuition, Taxes)
+                        </h2>
+                        <button onclick="addRow('others')"
+                            class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm font-semibold">+
+                            Add Payment</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse" id="othersTable">
+                            <thead>
+                                <tr
+                                    class="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm uppercase">
+                                    <th class="p-3 border-b dark:border-gray-600">Payment Name</th>
+                                    <th class="p-3 border-b dark:border-gray-600 w-40">Amount</th>
+                                    <th class="p-3 border-b dark:border-gray-600 w-10"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="othersBody">
+                                <!-- Rows will be injected by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Dashboard Summary -->
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mt-8">
+                    <div
+                        class="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg border border-red-100 dark:border-red-900 flex flex-col">
+                        <p class="text-red-600 dark:text-red-400 text-xs font-bold uppercase text-center">Total Debt</p>
+                        <div class="mt-1 w-full flex items-center justify-center">
+                            <span class="summary-value font-bold text-red-700 dark:text-red-300" id="totalDebtDisplay">0
+                                ₺</span>
+                        </div>
+                    </div>
+                    <div
+                        class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-100 dark:border-blue-900 flex flex-col">
+                        <p class="text-blue-600 dark:text-blue-400 text-xs font-bold uppercase text-center">Total Assets
+                            (Cash + Cards)</p>
+                        <div class="mt-1 w-full flex items-center justify-center">
+                            <span class="summary-value font-bold text-blue-700 dark:text-blue-300"
+                                id="totalCashDisplay">0 ₺</span>
+                        </div>
+                    </div>
+                    <div
+                        class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg border border-gray-200 dark:border-gray-600 flex flex-col">
+                        <p class="text-gray-600 dark:text-gray-300 text-xs font-bold uppercase text-center">Total Card
+                            Limit</p>
+                        <div class="mt-1 w-full flex items-center justify-center">
+                            <span class="summary-value font-bold text-gray-700 dark:text-gray-200"
+                                id="totalLimitDisplay">0 ₺</span>
+                        </div>
+                    </div>
+                    <div
+                        class="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg border border-purple-200 dark:border-purple-900 flex flex-col">
+                        <p class="text-purple-700 dark:text-purple-400 text-xs font-bold uppercase text-center">Overall
+                            Credit Card Position</p>
+                        <div class="mt-1 w-full flex items-center justify-center">
+                            <span class="summary-value font-bold" id="ccNetDisplay">0 ₺</span>
+                        </div>
+                        <p class="text-xs mt-2 text-purple-700 dark:text-purple-400 text-center" id="ccStatusText">
+                            Calculated from all cards.</p>
+                    </div>
+                    <div class="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200 dark:border-green-900 shadow-sm relative overflow-hidden flex flex-col"
+                        id="netStatusCard">
+                        <p class="text-green-800 dark:text-green-400 text-xs font-bold uppercase text-center">Overall
+                            Net
+                            Position</p>
+                        <div class="mt-1 w-full flex items-center justify-center">
+                            <span class="summary-value font-bold text-green-700 dark:text-green-300"
+                                id="netWorthDisplay">0
+                                ₺</span>
+                        </div>
+                        <p class="text-xs mt-2 text-green-600 dark:text-green-400 text-center" id="statusMessage">
+                            Calculating...</p>
+                    </div>
                 </div>
             </div>
 
-            <!-- Section 2: Funds / Assets -->
-            <div class="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg overflow-hidden shadow-sm">
-                <div class="bg-gray-50 dark:bg-gray-700 p-4 border-b dark:border-gray-600 flex justify-between items-center">
-                    <h2 class="text-lg font-bold text-gray-700 dark:text-gray-200">
-                        <i class="fa-solid fa-sack-dollar mr-2"></i> Assets & Cash
-                    </h2>
-                    <button onclick="addRow('funds')" class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-semibold">+ Add Account</button>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse" id="fundsTable">
-                        <thead>
-                            <tr class="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm uppercase">
-                                <th class="p-3 border-b dark:border-gray-600">Asset Name (Cash/Bank)</th>
-                                <th class="p-3 border-b dark:border-gray-600 w-40">Current Amount</th>
-                                <th class="p-3 border-b dark:border-gray-600 w-10"></th>
-                            </tr>
-                        </thead>
-                        <tbody id="fundsBody">
-                            <!-- Rows will be injected by JS -->
-                        </tbody>
-                    </table>
+            <!-- View: History (Placeholder) -->
+            <div id="view-history" class="view-section hidden animate-fade-in">
+                <div class="text-center py-20 text-gray-500 dark:text-gray-400">
+                    <i class="fa-solid fa-clock-rotate-left text-6xl mb-4 text-gray-300 dark:text-gray-600"></i>
+                    <h2 class="text-xl font-bold mb-2">History & Analysis</h2>
+                    <p>This feature will allow you to track your progress over time.</p>
+                    <p class="text-sm mt-4 text-green-600 dark:text-green-400">Coming soon!</p>
                 </div>
             </div>
 
-            <!-- Section 3: Other Payments (Debts) -->
-            <div class="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg overflow-hidden shadow-sm">
-                <div class="bg-gray-50 dark:bg-gray-700 p-4 border-b dark:border-gray-600 flex justify-between items-center">
-                    <h2 class="text-lg font-bold text-gray-700 dark:text-gray-200">
-                        <i class="fa-solid fa-file-invoice-dollar mr-2"></i> Other Payments (Rent, Tuition, Taxes)
-                    </h2>
-                    <button onclick="addRow('others')" class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 text-sm font-semibold">+ Add Payment</button>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left border-collapse" id="othersTable">
-                        <thead>
-                            <tr class="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm uppercase">
-                                <th class="p-3 border-b dark:border-gray-600">Payment Name</th>
-                                <th class="p-3 border-b dark:border-gray-600 w-40">Amount</th>
-                                <th class="p-3 border-b dark:border-gray-600 w-10"></th>
-                            </tr>
-                        </thead>
-                        <tbody id="othersBody">
-                            <!-- Rows will be injected by JS -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Dashboard Summary -->
-            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mt-8">
-                <div class="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg border border-red-100 dark:border-red-900 flex flex-col">
-                    <p class="text-red-600 dark:text-red-400 text-xs font-bold uppercase text-center">Total Debt</p>
-                    <div class="mt-1 w-full flex items-center justify-center">
-                        <span class="summary-value font-bold text-red-700 dark:text-red-300" id="totalDebtDisplay">0 ₺</span>
-                    </div>
-                </div>
-                <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-100 dark:border-blue-900 flex flex-col">
-                    <p class="text-blue-600 dark:text-blue-400 text-xs font-bold uppercase text-center">Total Assets (Cash + Cards)</p>
-                    <div class="mt-1 w-full flex items-center justify-center">
-                        <span class="summary-value font-bold text-blue-700 dark:text-blue-300" id="totalCashDisplay">0 ₺</span>
-                    </div>
-                </div>
-                <div class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg border border-gray-200 dark:border-gray-600 flex flex-col">
-                    <p class="text-gray-600 dark:text-gray-300 text-xs font-bold uppercase text-center">Total Card Limit</p>
-                    <div class="mt-1 w-full flex items-center justify-center">
-                        <span class="summary-value font-bold text-gray-700 dark:text-gray-200" id="totalLimitDisplay">0 ₺</span>
-                    </div>
-                </div>
-                <div class="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg border border-purple-200 dark:border-purple-900 flex flex-col">
-                    <p class="text-purple-700 dark:text-purple-400 text-xs font-bold uppercase text-center">Overall Credit Card Position</p>
-                    <div class="mt-1 w-full flex items-center justify-center">
-                        <span class="summary-value font-bold" id="ccNetDisplay">0 ₺</span>
-                    </div>
-                    <p class="text-xs mt-2 text-purple-700 dark:text-purple-400 text-center" id="ccStatusText">Calculated from all cards.</p>
-                </div>
-                <div class="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200 dark:border-green-900 shadow-sm relative overflow-hidden flex flex-col" id="netStatusCard">
-                    <p class="text-green-800 dark:text-green-400 text-xs font-bold uppercase text-center">Overall Net Position</p>
-                    <div class="mt-1 w-full flex items-center justify-center">
-                        <span class="summary-value font-bold text-green-700 dark:text-green-300" id="netWorthDisplay">0 ₺</span>
-                    </div>
-                    <p class="text-xs mt-2 text-green-600 dark:text-green-400 text-center" id="statusMessage">Calculating...</p>
+            <!-- View: Settings (Placeholder) -->
+            <div id="view-settings" class="view-section hidden animate-fade-in">
+                <div class="text-center py-20 text-gray-500 dark:text-gray-400">
+                    <i class="fa-solid fa-gear text-6xl mb-4 text-gray-300 dark:text-gray-600"></i>
+                    <h2 class="text-xl font-bold mb-2">App Settings</h2>
+                    <p>Configure currency, themes, and backup options here.</p>
+                    <p class="text-sm mt-4 text-green-600 dark:text-green-400">Coming soon!</p>
                 </div>
             </div>
 
         </div>
-        
-        <div class="bg-gray-50 dark:bg-gray-800 p-4 text-center text-xs text-gray-500 dark:text-gray-400 border-t dark:border-gray-700">
-            <p>When you change values, your data is automatically <b>saved in your browser</b>. Your data will not be deleted even if you close the page.</p>
+
+        <div
+            class="bg-gray-50 dark:bg-gray-800 p-4 text-center text-xs text-gray-500 dark:text-gray-400 border-t dark:border-gray-700">
+            <p>When you change values, your data is automatically <b>saved in your browser</b>. Your data will not be
+                deleted even if you close the page.</p>
         </div>
     </div>
 
@@ -174,5 +253,5 @@
     <script src="js/pwa.js"></script>
     <script src="js/app.js"></script>
 </body>
-</html>
 
+</html>

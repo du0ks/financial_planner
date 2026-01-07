@@ -1,0 +1,23 @@
+{
+  "name": "financial_planner",
+  "version": "1.0.0",
+  "description": "## 🚀 What is this? A modern, modular, and scalable personal finance tracker web app. All code is cleanly separated into HTML, CSS, and JavaScript modules, with full PWA support and comprehensive documentation.",
+  "main": "service-worker.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/du0ks/financial_planner.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/du0ks/financial_planner/issues"
+  },
+  "homepage": "https://github.com/du0ks/financial_planner#readme",
+  "dependencies": {
+    "tailwindcss": "^4.1.18"
+  }
+}

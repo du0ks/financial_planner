@@ -3,8 +3,19 @@ const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.webmanifest',
-  './service-worker.js'
-  // CDN'ler online gerektiriyor; istersen buraya da ekleyebilirsin.
+  './service-worker.js',
+  './css/styles.css',
+  './css/vendor/tailwind.min.css',
+  './css/vendor/fontawesome/all.min.css',
+  './css/vendor/webfonts/fa-solid-900.woff2',
+  './css/vendor/webfonts/fa-regular-400.woff2',
+  './js/app.js',
+  './js/currency.js',
+  './js/data.js',
+  './js/export.js',
+  './js/pwa.js',
+  './js/storage.js',
+  './js/ui.js'
 ];
 
 self.addEventListener('install', event => {

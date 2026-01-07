@@ -9,19 +9,39 @@ let fundData = [];
 let otherData = [];
 
 /**
+ * Generate a unique ID
+ */
+function generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+
+/**
  * Initialize all data from storage
  */
 function initializeData() {
-    const data = loadData();
-    cardData = data.cards;
-    fundData = data.funds;
-    otherData = data.others;
+    try {
+        const data = loadData();
+        cardData = data.cards || [];
+        fundData = data.funds || [];
+        otherData = data.others || [];
+    } catch (error) {
+        console.error("Failed to load data:", error);
+        // Fallback to empty arrays in case of corruption
+        cardData = [];
+        fundData = [];
+        otherData = [];
+    }
 }
 
 /**
  * Update card field
  */
 function updateCard(index, field, value) {
+    if (!cardData[index]) return;
+
     if (field === 'limit' || field === 'debt' || field === 'money') {
         cardData[index][field] = parseFloat(value) || 0;
     } else {
@@ -35,6 +55,8 @@ function updateCard(index, field, value) {
  * Update fund field
  */
 function updateFund(index, field, value) {
+    if (!fundData[index]) return;
+
     if (field === 'amount') {
         fundData[index][field] = parseFloat(value) || 0;
     } else {
@@ -48,6 +70,8 @@ function updateFund(index, field, value) {
  * Update other payment field
  */
 function updateOther(index, field, value) {
+    if (!otherData[index]) return;
+
     if (field === 'amount') {
         otherData[index][field] = parseFloat(value) || 0;
     } else {
@@ -62,13 +86,13 @@ function updateOther(index, field, value) {
  */
 function addRow(type) {
     if (type === 'cards') {
-        cardData.push({ id: Date.now(), name: 'New Card', limit: 0, money: 0, debt: 0 });
+        cardData.push({ id: generateUUID(), name: 'New Card', limit: 0, money: 0, debt: 0 });
         renderCards();
     } else if (type === 'funds') {
-        fundData.push({ id: Date.now(), name: 'New Account', amount: 0 });
+        fundData.push({ id: generateUUID(), name: 'New Account', amount: 0 });
         renderFunds();
     } else if (type === 'others') {
-        otherData.push({ id: Date.now(), name: 'New Payment', amount: 0 });
+        otherData.push({ id: generateUUID(), name: 'New Payment', amount: 0 });
         renderOthers();
     }
     saveData(cardData, fundData, otherData);
