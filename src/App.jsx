@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
-import { HistoryView, SettingsView } from './pages/Placeholders';
+import HistoryView from './pages/HistoryView';
+import { SettingsView } from './pages/Placeholders';
 import useFinanceData from './hooks/useFinanceData';
 
 function App() {
@@ -23,7 +24,7 @@ function App() {
             case 'dashboard':
                 return <Dashboard data={financeData} />;
             case 'history':
-                return <HistoryView />;
+                return <HistoryView data={financeData} />;
             case 'settings':
                 return <SettingsView />;
             default:

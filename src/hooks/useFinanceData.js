@@ -22,6 +22,7 @@ export default function useFinanceData() {
     const [rawFunds, setFunds] = useLocalStorage('finance_funds_v2', DEFAULT_DATA.funds);
     const [rawOthers, setOthers] = useLocalStorage('finance_others_v2', DEFAULT_DATA.others);
     const [currency, setCurrency] = useLocalStorage('finance_currency', 'TRY');
+    const [history, setHistory] = useLocalStorage('finance_history_v2', []);
 
     const toggleCurrency = () => {
         const currencies = ['TRY', 'UAH', 'EUR', 'USD'];
@@ -30,10 +31,11 @@ export default function useFinanceData() {
         setCurrency(currencies[nextIndex]);
     };
 
-    // Ensure they are arrays
+    // Ensure all data types are correct
     const cards = Array.isArray(rawCards) ? rawCards : DEFAULT_DATA.cards;
     const funds = Array.isArray(rawFunds) ? rawFunds : DEFAULT_DATA.funds;
     const others = Array.isArray(rawOthers) ? rawOthers : DEFAULT_DATA.others;
+    const historyList = Array.isArray(history) ? history : [];
 
     // CRUD for Cards
     const addCard = () => {
@@ -99,9 +101,28 @@ export default function useFinanceData() {
     const overallNet = totalAssets - totalDebt;
     const ccNet = cards.reduce((sum, c) => sum + ((parseFloat(c.money) || 0) - (parseFloat(c.debt) || 0)), 0);
 
+    // Snapshot Management
+    const saveSnapshot = () => {
+        const snapshot = {
+            id: generateUUID(),
+            date: new Date().toISOString(),
+            overallNet,
+            totalAssets,
+            totalDebt,
+            currency
+        };
+        setHistory([snapshot, ...historyList]);
+    };
+
+    const deleteSnapshot = (id) => {
+        setHistory(historyList.filter(s => s.id !== id));
+    };
+
     return {
         cards, funds, others,
         currency, toggleCurrency,
+        history: historyList,
+        saveSnapshot, deleteSnapshot,
         addCard, updateCard, removeCard,
         addFund, updateFund, removeFund,
         addOther, updateOther, removeOther,
