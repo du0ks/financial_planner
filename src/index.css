@@ -1,7 +1,9 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&display=swap');
 
 :root {
-    --font-sans: "Inter", system-ui, sans-serif;
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-display: 'Outfit', sans-serif;
 }
 
 html,
@@ -10,6 +12,26 @@ body {
     padding: 0;
     min-height: 100vh;
     background-color: #f3f4f6;
+
+    /* Cross-browser Font Smoothing Harmonization */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-family: var(--font-sans);
+}
+
+/* Force standard font rendering for Firefox */
+* {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3,
+h4,
+.font-display {
+    font-family: var(--font-display);
 }
 
 #root {

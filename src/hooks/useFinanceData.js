@@ -20,19 +20,21 @@ const DEFAULT_DATA = {
 };
 
 export default function useFinanceData(session) {
-    const [rawCards, setCards] = useLocalStorage('finance_cards_v3', DEFAULT_DATA.cards);
-    const [rawFunds, setFunds] = useLocalStorage('finance_funds_v3', DEFAULT_DATA.funds);
-    const [rawOthers, setOthers] = useLocalStorage('finance_others_v3', DEFAULT_DATA.others);
-    const [currency, setCurrency] = useLocalStorage('finance_currency_v3', 'TRY');
-    const [history, setHistory] = useLocalStorage('finance_history_v3', []);
-    const [goldGrams, setGoldGrams] = useLocalStorage('finance_gold_v3', 0);
+    const prefix = session?.isDemo ? 'demo_' : 'finance_';
+
+    const [rawCards, setCards] = useLocalStorage(`${prefix}cards_v3`, DEFAULT_DATA.cards);
+    const [rawFunds, setFunds] = useLocalStorage(`${prefix}funds_v3`, DEFAULT_DATA.funds);
+    const [rawOthers, setOthers] = useLocalStorage(`${prefix}others_v3`, DEFAULT_DATA.others);
+    const [currency, setCurrency] = useLocalStorage(`${prefix}currency_v3`, 'TRY');
+    const [history, setHistory] = useLocalStorage(`${prefix}history_v3`, []);
+    const [goldGrams, setGoldGrams] = useLocalStorage(`${prefix}gold_v3`, 0);
     const [goldPrice, setGoldPrice] = useState(0); // USD per gram
     const [goldChanges, setGoldChanges] = useState({ d1: 0, w1: 0, m1: 0, y1: 0 });
     const [exchangeRates, setExchangeRates] = useState({ TRY: 1, UAH: 1, EUR: 1, USD: 1 });
 
     // Sync from Supabase on Login
     useEffect(() => {
-        if (!session?.user?.id) return;
+        if (!session?.user?.id || session?.isDemo) return;
 
         const fetchData = async () => {
             const { data, error } = await supabase
@@ -107,7 +109,7 @@ export default function useFinanceData(session) {
 
     // Push to Supabase on changes (throttled)
     const pushToCloud = useCallback(async () => {
-        if (!session?.user?.id) return;
+        if (!session?.user?.id || session?.isDemo) return;
 
         const payload = {
             user_id: session.user.id,

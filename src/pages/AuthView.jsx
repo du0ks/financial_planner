@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { supabase } from '../utils/supabase';
 import { Wallet, LogIn, Mail, Lock, Loader2, Sparkles } from 'lucide-react';
 
-export default function AuthView() {
+export default function AuthView({ onDemoLogin }) {
     const [loading, setLoading] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -11,6 +11,13 @@ export default function AuthView() {
 
     const handleAuth = async (e) => {
         e.preventDefault();
+
+        // Handle Demo Account
+        if (email.toLowerCase() === 'demo' && password.toLowerCase() === 'demo') {
+            onDemoLogin();
+            return;
+        }
+
         setLoading(true);
         setMessage({ type: '', text: '' });
 
@@ -58,7 +65,7 @@ export default function AuthView() {
                             <div className="relative">
                                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                                 <input
-                                    type="email"
+                                    type="text"
                                     required
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}

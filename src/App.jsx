@@ -28,6 +28,13 @@ function App() {
         return () => subscription.unsubscribe();
     }, []);
 
+    const handleDemoLogin = () => {
+        setSession({
+            user: { email: 'demo@prosperity.app', id: 'demo-user' },
+            isDemo: true
+        });
+    };
+
     const financeData = useFinanceData(session);
 
     if (authLoading) {
@@ -42,7 +49,7 @@ function App() {
     }
 
     if (!session) {
-        return <AuthView />;
+        return <AuthView onDemoLogin={handleDemoLogin} />;
     }
 
     const renderContent = () => {

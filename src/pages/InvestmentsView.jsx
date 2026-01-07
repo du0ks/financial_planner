@@ -202,19 +202,19 @@ export default function InvestmentsView({ data }) {
                 {/* Investment Insights & Real Data */}
                 <div className="lg:col-span-2 space-y-6">
                     {/* Real Portfolio Weight */}
-                    <div className="bg-white dark:bg-gray-900 rounded-[32px] p-8 shadow-xl border border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                    <div className="bg-white dark:bg-gray-900 rounded-[32px] p-8 shadow-xl border border-gray-100 dark:border-gray-800 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
                         <div className="flex items-center gap-5">
                             <div className="p-4 bg-yellow-500/10 rounded-2xl text-yellow-600">
                                 <Wallet size={32} />
                             </div>
                             <div>
                                 <h4 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-1">Portfolio Allocation</h4>
-                                <p className="text-2xl font-black text-gray-900 dark:text-white">Gold Asset</p>
+                                <p className="text-2xl font-base text-gray-900 dark:text-white">Gold Asset</p>
                             </div>
                         </div>
-                        <div className="text-right">
-                            <p className="text-xs font-bold text-yellow-600 uppercase mb-1">{portfolioWeight.toFixed(1)}% Weight</p>
-                            <div className="w-40 h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                        <div className="flex flex-col items-start sm:items-end w-full sm:w-auto mt-2 sm:mt-0">
+                            <p className="text-xs font-bold text-yellow-600 uppercase mb-2">{portfolioWeight.toFixed(1)}% Weight</p>
+                            <div className="w-full sm:w-48 h-2.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                                 <div
                                     className="h-full bg-yellow-600 rounded-full shadow-[0_0_8px_rgba(234,179,8,0.5)] transition-all duration-1000"
                                     style={{ width: `${Math.min(100, portfolioWeight)}%` }}
