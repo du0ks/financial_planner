@@ -236,6 +236,53 @@ export default function useFinanceData(session) {
 
     const allTimeHigh = Math.max(overallNet, ...historyList.map(s => s.overallNet));
 
+    // Backup & Restore Logic
+    const exportBackup = () => {
+        const data = {
+            version: '3.0',
+            timestamp: new Date().toISOString(),
+            cards,
+            funds,
+            others,
+            currency,
+            goldGrams,
+            history: historyList
+        };
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `prosperity_backup_${new Date().toISOString().split('T')[0]}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const importBackup = (jsonData) => {
+        try {
+            const data = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
+
+            // Basic validation
+            if (!data.cards || !data.funds) {
+                throw new Error("Invalid backup file format");
+            }
+
+            // Update all states
+            setCards(data.cards);
+            setFunds(data.funds);
+            setOthers(data.others || []);
+            setCurrency(data.currency || 'TRY');
+            setGoldGrams(data.goldGrams || 0);
+            setHistory(data.history || []);
+
+            console.log("Backup restored successfully");
+            return true;
+        } catch (err) {
+            console.error("Backup restore failed:", err);
+            alert("Failed to restore backup: " + err.message);
+            return false;
+        }
+    };
+
     return {
         cards, funds, others,
         currency, toggleCurrency,
@@ -250,6 +297,7 @@ export default function useFinanceData(session) {
         addCard, updateCard, removeCard,
         addFund, updateFund, removeFund,
         addOther, updateOther, removeOther,
+        exportBackup, importBackup,
         totals: {
             totalLimit,
             totalDebt,

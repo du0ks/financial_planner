@@ -3,7 +3,7 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import HistoryView from './pages/HistoryView';
 import InvestmentsView from './pages/InvestmentsView';
-import { SettingsView } from './pages/Placeholders';
+import SettingsView from './pages/SettingsView';
 import AuthView from './pages/AuthView';
 import useFinanceData from './hooks/useFinanceData';
 import { supabase } from './utils/supabase';
@@ -61,7 +61,7 @@ function App() {
             case 'history':
                 return <HistoryView data={financeData} />;
             case 'settings':
-                return <SettingsView session={session} />;
+                return <SettingsView data={financeData} />;
             default:
                 return <Dashboard data={financeData} />;
         }
