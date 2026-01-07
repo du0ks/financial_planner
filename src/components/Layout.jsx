@@ -1,5 +1,6 @@
 import { Wallet, Banknote, LogOut, User } from 'lucide-react';
 import { supabase } from '../utils/supabase';
+import InstallHint from './InstallHint';
 
 export default function Layout({ children, activeTab, onTabChange, currency, onToggleCurrency, userEmail }) {
     const handleLogout = () => supabase.auth.signOut();
@@ -72,6 +73,9 @@ export default function Layout({ children, activeTab, onTabChange, currency, onT
             <main className="flex-1 max-w-6xl w-full mx-auto p-4 md:p-6 lg:p-8 animate-fade-in">
                 {children}
             </main>
+
+            {/* PWA Install Guide */}
+            <InstallHint />
 
         </div>
     );

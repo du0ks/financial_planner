@@ -13,8 +13,8 @@ export default defineConfig({
         name: 'Prosperity Planner',
         short_name: 'Prosperity',
         description: 'Advanced Personal Financial Tracker',
-        theme_color: '#15803d',
-        background_color: '#ffffff',
+        theme_color: '#064e3b', // Deep emerald
+        background_color: '#000000', // Matches splash screen
         display: 'standalone',
         orientation: 'portrait',
         icons: [
@@ -23,18 +23,25 @@ export default defineConfig({
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable'
-          },
-          {
-            src: 'vite.svg',
-            sizes: 'any',
-            type: 'image/svg+xml',
-            purpose: 'any maskable'
           }
         ]
       },
       workbox: {
         cleanupOutdatedCaches: true,
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}']
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}'],
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/api\.gold-api\.com\/.*/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'gold-api-cache',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 // 24 hours
+              }
+            }
+          }
+        ]
       }
     })
   ]
