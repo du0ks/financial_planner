@@ -21,6 +21,14 @@ export default function useFinanceData() {
     const [rawCards, setCards] = useLocalStorage('finance_cards_v2', DEFAULT_DATA.cards);
     const [rawFunds, setFunds] = useLocalStorage('finance_funds_v2', DEFAULT_DATA.funds);
     const [rawOthers, setOthers] = useLocalStorage('finance_others_v2', DEFAULT_DATA.others);
+    const [currency, setCurrency] = useLocalStorage('finance_currency', 'TRY');
+
+    const toggleCurrency = () => {
+        const currencies = ['TRY', 'UAH', 'EUR', 'USD'];
+        const currentIndex = currencies.indexOf(currency);
+        const nextIndex = (currentIndex + 1) % currencies.length;
+        setCurrency(currencies[nextIndex]);
+    };
 
     // Ensure they are arrays
     const cards = Array.isArray(rawCards) ? rawCards : DEFAULT_DATA.cards;
@@ -93,6 +101,7 @@ export default function useFinanceData() {
 
     return {
         cards, funds, others,
+        currency, toggleCurrency,
         addCard, updateCard, removeCard,
         addFund, updateFund, removeFund,
         addOther, updateOther, removeOther,

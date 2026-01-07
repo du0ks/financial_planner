@@ -32,7 +32,12 @@ function App() {
     };
 
     return (
-        <Layout activeTab={activeTab} onTabChange={setActiveTab}>
+        <Layout
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            currency={financeData.currency}
+            onToggleCurrency={financeData.toggleCurrency}
+        >
             {renderContent()}
         </Layout>
     );

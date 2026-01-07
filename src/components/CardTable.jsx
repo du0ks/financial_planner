@@ -2,7 +2,9 @@ import React from 'react';
 import { Trash2, CreditCard, ChevronRight } from 'lucide-react';
 import { formatMoney } from '../utils/format';
 
-export default function CardTable({ cards, updateCard, removeCard }) {
+const CURRENCY_SYMBOLS = { TRY: '₺', UAH: '₴', USD: '$', EUR: '€' };
+
+export default function CardTable({ cards, updateCard, removeCard, currency }) {
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
             {cards.map((card) => {
@@ -46,23 +48,26 @@ export default function CardTable({ cards, updateCard, removeCard }) {
                                 value={card.limit}
                                 onChange={(v) => updateCard(card.id, 'limit', v)}
                                 color="text-gray-500"
+                                symbol={CURRENCY_SYMBOLS[currency]}
                             />
                             <StatsInput
                                 label="In Bank"
                                 value={card.money}
                                 onChange={(v) => updateCard(card.id, 'money', v)}
                                 color="text-blue-600 dark:text-blue-400"
+                                symbol={CURRENCY_SYMBOLS[currency]}
                             />
                             <StatsInput
                                 label="Debt"
                                 value={card.debt}
                                 onChange={(v) => updateCard(card.id, 'debt', v)}
                                 color="text-red-500"
+                                symbol={CURRENCY_SYMBOLS[currency]}
                             />
                             <div className="flex flex-col">
                                 <span className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-1">Available</span>
                                 <span className={`text-md font-mono font-bold ${remainingLimit < 0 ? 'text-red-500' : 'text-green-600 dark:text-green-400'}`}>
-                                    {formatMoney(remainingLimit)}
+                                    {formatMoney(remainingLimit, currency)}
                                 </span>
                             </div>
                         </div>
@@ -71,7 +76,7 @@ export default function CardTable({ cards, updateCard, removeCard }) {
                         <div className="mt-auto pt-4 border-t border-gray-50 dark:border-gray-700/50 flex items-center justify-between">
                             <span className="text-xs font-semibold text-gray-400 italic">Net Position</span>
                             <span className={`text-lg font-mono font-extrabold ${cardNet < 0 ? 'text-red-600' : 'text-green-600 dark:text-green-400'}`}>
-                                {cardNet > 0 ? '+' : ''}{formatMoney(cardNet)}
+                                {cardNet > 0 ? '+' : ''}{formatMoney(cardNet, currency)}
                             </span>
                         </div>
                     </div>
@@ -81,12 +86,12 @@ export default function CardTable({ cards, updateCard, removeCard }) {
     );
 }
 
-function StatsInput({ label, value, onChange, color }) {
+function StatsInput({ label, value, onChange, color, symbol }) {
     return (
         <div className="flex flex-col">
             <label className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-1">{label}</label>
             <div className="flex items-center">
-                <span className={`text-xs mr-1 opacity-40 font-mono ${color}`}>₺</span>
+                <span className={`text-xs mr-1 opacity-40 font-mono ${color}`}>{symbol}</span>
                 <input
                     type="number"
                     value={value}

@@ -1,7 +1,9 @@
 import React from 'react';
 import { Trash2, ArrowDownRight } from 'lucide-react';
 
-export default function OtherTable({ others, updateOther, removeOther }) {
+const CURRENCY_SYMBOLS = { TRY: '₺', UAH: '₴', USD: '$', EUR: '€' };
+
+export default function OtherTable({ others, updateOther, removeOther, currency }) {
     return (
         <div className="space-y-3 mb-8">
             {others.map((item) => (
@@ -25,7 +27,7 @@ export default function OtherTable({ others, updateOther, removeOther }) {
                     <div className="flex items-center gap-4">
                         <div className="text-right">
                             <div className="flex items-center justify-end text-red-600 dark:text-red-400 font-bold font-mono text-lg">
-                                <span className="text-sm mr-1 opacity-50 font-normal">₺</span>
+                                <span className="text-sm mr-1 opacity-50 font-normal">{CURRENCY_SYMBOLS[currency]}</span>
                                 <input
                                     type="number"
                                     value={item.amount}

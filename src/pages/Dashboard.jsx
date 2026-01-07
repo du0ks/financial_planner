@@ -8,6 +8,7 @@ import { Plus } from 'lucide-react';
 export default function Dashboard({ data }) {
     const {
         cards, funds, others,
+        currency,
         addCard, updateCard, removeCard,
         addFund, updateFund, removeFund,
         addOther, updateOther, removeOther,
@@ -19,7 +20,7 @@ export default function Dashboard({ data }) {
 
             {/* Overview Cards */}
             <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-4 opacity-50">Financial Overview</h3>
-            <SummaryCards totals={totals} />
+            <SummaryCards totals={totals} currency={currency} />
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
 
@@ -38,6 +39,7 @@ export default function Dashboard({ data }) {
                         cards={cards}
                         updateCard={updateCard}
                         removeCard={removeCard}
+                        currency={currency}
                     />
                 </section>
 
@@ -57,6 +59,7 @@ export default function Dashboard({ data }) {
                             funds={funds}
                             updateFund={updateFund}
                             removeFund={removeFund}
+                            currency={currency}
                         />
                     </div>
 
@@ -74,6 +77,7 @@ export default function Dashboard({ data }) {
                             others={others}
                             updateOther={updateOther}
                             removeOther={removeOther}
+                            currency={currency}
                         />
                     </div>
                 </section>

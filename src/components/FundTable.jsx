@@ -2,7 +2,9 @@ import React from 'react';
 import { Trash2, PiggyBank, ArrowUpRight } from 'lucide-react';
 import { formatMoney } from '../utils/format';
 
-export default function FundTable({ funds, updateFund, removeFund }) {
+const CURRENCY_SYMBOLS = { TRY: '₺', UAH: '₴', USD: '$', EUR: '€' };
+
+export default function FundTable({ funds, updateFund, removeFund, currency }) {
     return (
         <div className="space-y-3 mb-8">
             {funds.map((fund) => (
@@ -26,7 +28,7 @@ export default function FundTable({ funds, updateFund, removeFund }) {
                     <div className="flex items-center gap-4">
                         <div className="text-right">
                             <div className="flex items-center justify-end text-blue-600 dark:text-blue-400 font-bold font-mono text-lg">
-                                <span className="text-sm mr-1 opacity-50 font-normal">₺</span>
+                                <span className="text-sm mr-1 opacity-50 font-normal">{CURRENCY_SYMBOLS[currency]}</span>
                                 <input
                                     type="number"
                                     value={fund.amount}
