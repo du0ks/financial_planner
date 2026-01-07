@@ -7,6 +7,7 @@ import SettingsView from './pages/SettingsView';
 import AuthView from './pages/AuthView';
 import useFinanceData from './hooks/useFinanceData';
 import { supabase } from './utils/supabase';
+import ThemeColorObserver from './components/ThemeColorObserver';
 
 function App() {
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -47,6 +48,7 @@ function App() {
     if (authLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
+                <ThemeColorObserver />
                 <div className="animate-pulse flex flex-col items-center">
                     <div className="w-12 h-12 bg-green-500 rounded-2xl mb-4"></div>
                     <div className="h-4 w-32 bg-gray-200 dark:bg-gray-800 rounded"></div>
@@ -75,15 +77,18 @@ function App() {
     };
 
     return (
-        <Layout
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            currency={financeData.currency}
-            onToggleCurrency={financeData.toggleCurrency}
-            userEmail={session.user.email}
-        >
-            {renderContent()}
-        </Layout>
+        <>
+            <ThemeColorObserver />
+            <Layout
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                currency={financeData.currency}
+                onToggleCurrency={financeData.toggleCurrency}
+                userEmail={session.user.email}
+            >
+                {renderContent()}
+            </Layout>
+        </>
     );
 }
 
