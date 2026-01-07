@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { History as HistoryIcon, TrendingUp, TrendingDown, Trash2, Camera, Calendar, ArrowRight, Zap, Target, Award, Info, X } from 'lucide-react';
 import { formatMoney } from '../utils/format';
 
@@ -83,8 +84,8 @@ export default function HistoryView({ data }) {
             </div>
 
             {/* Explainer Modal */}
-            {showInfo && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+            {showInfo && createPortal(
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
                     <div className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-[32px] p-8 shadow-2xl relative border border-gray-100 dark:border-gray-800">
                         <button
                             onClick={() => setShowInfo(false)}
@@ -160,7 +161,8 @@ export default function HistoryView({ data }) {
                             Got it!
                         </button>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Interactive Dashboard Card */}
