@@ -3,7 +3,7 @@ import { History as HistoryIcon, TrendingUp, TrendingDown, Trash2, Camera, Calen
 import { formatMoney } from '../utils/format';
 
 export default function HistoryView({ data }) {
-    const { history, saveSnapshot, deleteSnapshot, totals, currency } = data;
+    const { history = [], saveSnapshot, deleteSnapshot, totals, currency } = data;
 
     // Chart logic: Transform history into points
     const chartData = [...history].reverse();

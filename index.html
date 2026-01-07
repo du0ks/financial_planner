@@ -9,8 +9,28 @@
 </head>
 
 <body>
-  <div id="root"></div>
+  <div id="root">
+    <div
+      style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; color: #666;">
+      <p>Loading Prosperity Dashboard...</p>
+    </div>
+  </div>
+
   <script type="module" src="/src/main.jsx" crossorigin></script>
+
+  <script>
+    // Diagnostic helper
+    setTimeout(() => {
+      const root = document.getElementById('root');
+      if (root && root.innerHTML.includes('Loading Prosperity')) {
+        root.innerHTML = '<div style="padding: 20px; font-family: sans-serif; color: red;">' +
+          '<h1>Deployment Error</h1>' +
+          '<p>The JavaScript failed to load or initialize. Check the browser console for details.</p>' +
+          '<p>Likely causes: Asset 404 or Service Worker caching issue.</p>' +
+          '</div>';
+      }
+    }, 5000);
+  </script>
   <!-- PWA register script removed because VitePWA plugin disabled -->
 </body>
 
