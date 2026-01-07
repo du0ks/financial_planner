@@ -201,6 +201,7 @@ export default function useFinanceData(session) {
     const overallNet = totalAssets - totalDebt;
     const ccNet = cards.reduce((sum, c) => sum + ((parseFloat(c.money) || 0) - (parseFloat(c.debt) || 0)), 0);
 
+
     // Snapshot Management
     const saveSnapshot = () => {
         const snapshot = {

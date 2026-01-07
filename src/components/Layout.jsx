@@ -81,8 +81,8 @@ function NavTab({ active, onClick, label }) {
     return (
         <button
             onClick={onClick}
-            className={`py-3 border-b-2 transition-all duration-300 whitespace-nowrap ${active
-                ? 'border-green-500 text-green-600 dark:text-green-400 font-semibold'
+            className={`py-3 border-b-2 transition-all duration-300 whitespace-nowrap font-bold text-sm outline-none px-1 ${active
+                ? 'border-green-500 text-green-600 dark:text-green-400'
                 : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
                 }`}
         >
