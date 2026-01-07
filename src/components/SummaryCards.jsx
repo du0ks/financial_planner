@@ -17,16 +17,16 @@ export default function SummaryCards({ totals, currency }) {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 lg:grid-rows-2 gap-4 md:gap-5 mb-8">
 
             {/* Net Worth - Hero Card */}
-            <div className="lg:col-span-2 lg:row-span-2 relative overflow-hidden bg-gradient-to-br from-gray-900 via-gray-800 to-gray-950 dark:from-black dark:via-gray-900 dark:to-black rounded-[32px] p-8 text-white shadow-xl shadow-gray-950/20 flex flex-col justify-center">
-                <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
+            <div className="lg:col-span-2 lg:row-span-2 relative overflow-hidden bg-purple-50 dark:bg-gradient-to-br dark:from-black dark:via-gray-900 dark:to-black rounded-[32px] p-8 text-purple-950 dark:text-white shadow-xl shadow-gray-950/20 flex flex-col justify-center border border-purple-100 dark:border-transparent">
+                <div className="absolute top-0 right-0 p-4 opacity-10 dark:opacity-10 text-purple-900 dark:text-white pointer-events-none">
                     <Wallet size={120} />
                 </div>
                 <div className="relative z-10 flex flex-col items-start">
-                    <p className="text-gray-400 text-[10px] font-black uppercase tracking-[0.3em] mb-3 opacity-60">Total Net Worth</p>
+                    <p className="text-purple-400 dark:text-gray-400 text-[10px] font-black uppercase tracking-[0.3em] mb-3 opacity-80 dark:opacity-60">Total Net Worth</p>
                     <h2 className={`font-black tracking-tighter mb-5 leading-none transition-all ${getDynamicFontSize(formatMoney(overallNet, currency)) === 'text-2xl' ? 'text-4xl md:text-5xl' : 'text-2xl md:text-3xl'}`}>
                         {formatMoney(overallNet, currency)}
                     </h2>
-                    <div className={`inline-flex items-center px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${overallNet >= 0 ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+                    <div className={`inline-flex items-center px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${overallNet >= 0 ? 'bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20'}`}>
                         {overallNet >= 0 ? <TrendingUp size={12} className="mr-2" /> : <TrendingDown size={12} className="mr-2" />}
                         {overallNet >= 0 ? 'Stable Assets' : 'Debt Risk'}
                     </div>
