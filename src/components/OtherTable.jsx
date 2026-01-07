@@ -1,5 +1,6 @@
 import React from 'react';
 import { Trash2, ArrowDownRight } from 'lucide-react';
+import { parseCloudNumber } from '../utils/format';
 
 const CURRENCY_SYMBOLS = { TRY: '₺', UAH: '₴', USD: '$', EUR: '€' };
 
@@ -28,18 +29,16 @@ export default function OtherTable({ others, updateOther, removeOther, currency 
                         <div className="text-right">
                             <div className="flex items-center justify-end text-red-600 dark:text-red-400 font-bold font-mono text-lg">
                                 <span className="text-sm mr-1 opacity-50 font-normal">{CURRENCY_SYMBOLS[currency]}</span>
-                                <input
-                                    type="number"
+                                <AmountInput
                                     value={item.amount}
-                                    onChange={(e) => updateOther(item.id, 'amount', e.target.value)}
-                                    className="bg-transparent text-right w-24 focus:outline-none border-b border-transparent focus:border-red-200"
+                                    onChange={(v) => updateOther(item.id, 'amount', parseCloudNumber(v))}
                                 />
                             </div>
                         </div>
 
                         <button
                             onClick={() => removeOther(item.id)}
-                            className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 p-1 rounded-lg transition-all"
+                            className="text-gray-300 hover:text-red-500 p-1 rounded-lg transition-all"
                         >
                             <Trash2 size={16} />
                         </button>
@@ -47,5 +46,24 @@ export default function OtherTable({ others, updateOther, removeOther, currency 
                 </div>
             ))}
         </div>
+    );
+}
+
+function AmountInput({ value, onChange }) {
+    const [localValue, setLocalValue] = React.useState(value);
+
+    React.useEffect(() => {
+        setLocalValue(value);
+    }, [value]);
+
+    return (
+        <input
+            type="text"
+            inputMode="decimal"
+            value={localValue}
+            onChange={(e) => setLocalValue(e.target.value)}
+            onBlur={() => onChange(localValue)}
+            className="bg-transparent text-right w-24 focus:outline-none border-b border-transparent focus:border-red-200"
+        />
     );
 }

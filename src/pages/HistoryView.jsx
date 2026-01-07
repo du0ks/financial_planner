@@ -329,7 +329,7 @@ export default function HistoryView({ data }) {
                                     </div>
                                     <button
                                         onClick={() => deleteSnapshot(snapshot.id)}
-                                        className="opacity-0 group-hover:opacity-100 p-2 text-gray-300 hover:text-red-500 transition-all"
+                                        className="p-2 text-gray-400 hover:text-red-500 transition-all"
                                     >
                                         <Trash2 size={16} />
                                     </button>

@@ -1,6 +1,6 @@
 import React from 'react';
-import { Trash2, PiggyBank, ArrowUpRight } from 'lucide-react';
-import { formatMoney } from '../utils/format';
+import { Trash2, PiggyBank } from 'lucide-react';
+import { formatMoney, parseCloudNumber } from '../utils/format';
 
 const CURRENCY_SYMBOLS = { TRY: '₺', UAH: '₴', USD: '$', EUR: '€' };
 
@@ -29,18 +29,16 @@ export default function FundTable({ funds, updateFund, removeFund, currency }) {
                         <div className="text-right">
                             <div className="flex items-center justify-end text-blue-600 dark:text-blue-400 font-bold font-mono text-lg">
                                 <span className="text-sm mr-1 opacity-50 font-normal">{CURRENCY_SYMBOLS[currency]}</span>
-                                <input
-                                    type="number"
+                                <AmountInput
                                     value={fund.amount}
-                                    onChange={(e) => updateFund(fund.id, 'amount', e.target.value)}
-                                    className="bg-transparent text-right w-24 focus:outline-none border-b border-transparent focus:border-blue-200"
+                                    onChange={(v) => updateFund(fund.id, 'amount', parseCloudNumber(v))}
                                 />
                             </div>
                         </div>
 
                         <button
                             onClick={() => removeFund(fund.id)}
-                            className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 p-1 rounded-lg transition-all"
+                            className="text-gray-300 hover:text-red-500 p-1 rounded-lg transition-all"
                         >
                             <Trash2 size={16} />
                         </button>
@@ -48,5 +46,24 @@ export default function FundTable({ funds, updateFund, removeFund, currency }) {
                 </div>
             ))}
         </div>
+    );
+}
+
+function AmountInput({ value, onChange }) {
+    const [localValue, setLocalValue] = React.useState(value);
+
+    React.useEffect(() => {
+        setLocalValue(value);
+    }, [value]);
+
+    return (
+        <input
+            type="text"
+            inputMode="decimal"
+            value={localValue}
+            onChange={(e) => setLocalValue(e.target.value)}
+            onBlur={() => onChange(localValue)}
+            className="bg-transparent text-right w-24 focus:outline-none border-b border-transparent focus:border-blue-200"
+        />
     );
 }

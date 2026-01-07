@@ -1,6 +1,6 @@
 import React from 'react';
 import { Trash2, CreditCard, ChevronRight } from 'lucide-react';
-import { formatMoney } from '../utils/format';
+import { formatMoney, parseCloudNumber } from '../utils/format';
 
 const CURRENCY_SYMBOLS = { TRY: '₺', UAH: '₴', USD: '$', EUR: '€' };
 
@@ -35,7 +35,7 @@ export default function CardTable({ cards, updateCard, removeCard, currency }) {
                             </div>
                             <button
                                 onClick={() => removeCard(card.id)}
-                                className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+                                className="text-gray-300 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
                             >
                                 <Trash2 size={16} />
                             </button>
@@ -46,21 +46,21 @@ export default function CardTable({ cards, updateCard, removeCard, currency }) {
                             <StatsInput
                                 label="Limit"
                                 value={card.limit}
-                                onChange={(v) => updateCard(card.id, 'limit', v)}
+                                onChange={(v) => updateCard(card.id, 'limit', parseCloudNumber(v))}
                                 color="text-gray-500"
                                 symbol={CURRENCY_SYMBOLS[currency]}
                             />
                             <StatsInput
                                 label="In Bank"
                                 value={card.money}
-                                onChange={(v) => updateCard(card.id, 'money', v)}
+                                onChange={(v) => updateCard(card.id, 'money', parseCloudNumber(v))}
                                 color="text-blue-600 dark:text-blue-400"
                                 symbol={CURRENCY_SYMBOLS[currency]}
                             />
                             <StatsInput
                                 label="Debt"
                                 value={card.debt}
-                                onChange={(v) => updateCard(card.id, 'debt', v)}
+                                onChange={(v) => updateCard(card.id, 'debt', parseCloudNumber(v))}
                                 color="text-red-500"
                                 symbol={CURRENCY_SYMBOLS[currency]}
                             />
@@ -87,15 +87,30 @@ export default function CardTable({ cards, updateCard, removeCard, currency }) {
 }
 
 function StatsInput({ label, value, onChange, color, symbol }) {
+    // We use a local string state to allow users to type commas/dots freely
+    // without the parser immediately stripping them or reverting them.
+    const [localValue, setLocalValue] = React.useState(value);
+
+    // Sync local state if external value changes (e.g. cloud sync)
+    React.useEffect(() => {
+        setLocalValue(value);
+    }, [value]);
+
+    const handleBlur = () => {
+        onChange(localValue);
+    };
+
     return (
         <div className="flex flex-col">
             <label className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-1">{label}</label>
             <div className="flex items-center">
                 <span className={`text-xs mr-1 opacity-40 font-mono ${color}`}>{symbol}</span>
                 <input
-                    type="number"
-                    value={value}
-                    onChange={(e) => onChange(e.target.value)}
+                    type="text"
+                    inputMode="decimal"
+                    value={localValue}
+                    onChange={(e) => setLocalValue(e.target.value)}
+                    onBlur={handleBlur}
                     className={`bg-transparent font-mono font-bold text-md w-full focus:outline-none ${color}`}
                 />
             </div>
