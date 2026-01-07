@@ -9,6 +9,7 @@
 function initializeApp() {
     // Load settings and apply currency preferences
     initCurrency();
+    initTheme();
 
     // Load data from storage
     initializeData();
@@ -57,6 +58,62 @@ function switchView(viewId) {
 
     // Save current view preference (optional)
     localStorage.setItem('lastView', viewId);
+}
+
+/**
+ * Change Currency Helper
+ */
+function changeCurrency(code) {
+    setCurrency(code);
+}
+
+/**
+ * Set and Apply Theme
+ */
+function setTheme(theme) {
+    const html = document.documentElement;
+    const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+    if (theme === 'dark') {
+        html.classList.add('dark');
+    } else {
+        html.classList.remove('dark');
+    }
+
+    // Update local storage directly if needed, or implement a saveSettings wrapper
+    // For now, we reuse saveSettings from currency which might trigger a reload, 
+    // but ideally we should separate theme saving.
+    // Let's rely on basic localStorage for theme to keep it simple or expand saveSettings later.
+    localStorage.setItem('theme', theme);
+
+    // Update active button state
+    document.querySelectorAll('[id^="theme-btn-"]').forEach(btn => {
+        if (btn.id === `theme-btn-${theme}`) {
+            btn.classList.add('bg-white', 'dark:bg-gray-600', 'shadow-sm', 'text-gray-900', 'dark:text-white');
+            btn.classList.remove('text-gray-500', 'dark:text-gray-400');
+        } else {
+            btn.classList.remove('bg-white', 'dark:bg-gray-600', 'shadow-sm', 'text-gray-900', 'dark:text-white');
+            btn.classList.add('text-gray-500', 'dark:text-gray-400');
+        }
+    });
+}
+
+/**
+ * Initialize Theme
+ */
+function initTheme() {
+    const theme = localStorage.getItem('theme') || 'light';
+    setTheme(theme);
+}
+
+/**
+ * Reset all data
+ */
+function resetData() {
+    if (confirm("CRITICAL WARNING: This will delete ALL your data permanently! Are you sure?")) {
+        localStorage.removeItem('financeTracker_local_v1');
+        location.reload();
+    }
 }
 
 

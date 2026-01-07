@@ -8,6 +8,9 @@ let currentLocale = 'tr-TR';
 
 const CURRENCY_MAP = {
     'TRY': { symbol: '₺', label: 'TRY ₺', locale: 'tr-TR' },
+    'USD': { symbol: '$', label: 'USD $', locale: 'en-US' },
+    'EUR': { symbol: '€', label: 'EUR €', locale: 'de-DE' },
+    'GBP': { symbol: '£', label: 'GBP £', locale: 'en-GB' },
     'UAH': { symbol: '₴', label: 'UAH ₴', locale: 'uk-UA' }
 };
 
@@ -16,15 +19,11 @@ const CURRENCY_MAP = {
  */
 function initCurrency() {
     const settings = loadSettings();
-    
-    if (settings.currency === 'UAH') {
-        currentCurrency = 'UAH';
-        currentLocale = 'uk-UA';
-        updateCurrencyLabel();
+
+    if (settings.currency && CURRENCY_MAP[settings.currency]) {
+        setCurrency(settings.currency, false);
     } else {
-        currentCurrency = 'TRY';
-        currentLocale = 'tr-TR';
-        updateCurrencyLabel();
+        setCurrency('TRY', false);
     }
 }
 
@@ -32,31 +31,38 @@ function initCurrency() {
  * Update the currency label in the UI
  */
 function updateCurrencyLabel() {
+    // Only needed if we still had the header button, but good to keep for compatibility
     const label = document.getElementById('currencyLabel');
     if (label) {
         label.innerText = CURRENCY_MAP[currentCurrency].label;
     }
+
+    // Update the dropdown in settings if it exists
+    const select = document.getElementById('currencySelect');
+    if (select) {
+        select.value = currentCurrency;
+    }
 }
 
 /**
- * Toggle between TRY and UAH
+ * Set specific currency
  */
-function toggleCurrency() {
-    if (currentCurrency === 'TRY') {
-        currentCurrency = 'UAH';
-        currentLocale = 'uk-UA';
-    } else {
-        currentCurrency = 'TRY';
-        currentLocale = 'tr-TR';
-    }
-    
+function setCurrency(code, save = true) {
+    if (!CURRENCY_MAP[code]) return;
+
+    currentCurrency = code;
+    currentLocale = CURRENCY_MAP[code].locale;
+
     updateCurrencyLabel();
-    saveSettings(currentCurrency, currentLocale);
-    
-    // Re-render all tables with new currency
-    renderCards();
-    renderFunds();
-    renderOthers();
+
+    if (save) {
+        saveSettings(currentCurrency, currentLocale);
+
+        // Re-render all tables with new currency
+        renderCards();
+        renderFunds();
+        renderOthers();
+    }
 }
 
 /**
