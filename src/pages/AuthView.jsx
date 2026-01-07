@@ -38,10 +38,10 @@ export default function AuthView({ onDemoLogin }) {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-950 dark:to-black">
-            <div className="w-full max-w-md animate-fade-in">
+        <div className="min-h-screen flex items-start justify-center pt-8 sm:pt-0 sm:items-center p-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-950 dark:to-black">
+            <div className="w-full max-w-md animate-fade-in sm:mt-0">
                 {/* Logo Area */}
-                <div className="text-center mb-8">
+                <div className="text-center mb-6 sm:mb-8">
                     <div className="inline-flex items-center justify-center p-3 bg-gradient-to-tr from-green-500 to-emerald-400 rounded-2xl shadow-xl shadow-green-500/20 mb-4">
                         <Wallet className="text-white w-8 h-8" />
                     </div>
@@ -55,9 +55,16 @@ export default function AuthView({ onDemoLogin }) {
                         <Sparkles size={120} />
                     </div>
 
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
-                        {isSignUp ? 'Create your account' : 'Welcome back'}
-                    </h2>
+                    <div className="mb-6">
+                        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">
+                            {isSignUp ? 'Create your account' : 'Welcome back'}
+                        </h2>
+                        {!isSignUp && (
+                            <p className="text-xs font-bold text-green-600 dark:text-green-400 uppercase tracking-widest bg-green-500/10 inline-block px-3 py-1 rounded-lg">
+                                Tip: Use demo/demo to explore
+                            </p>
+                        )}
+                    </div>
 
                     <form onSubmit={handleAuth} className="space-y-4 relative z-10">
                         <div>

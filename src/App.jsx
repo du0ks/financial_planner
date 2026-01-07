@@ -29,6 +29,13 @@ function App() {
     }, []);
 
     const handleDemoLogin = () => {
+        // Clear all demo data so it starts fresh every time
+        Object.keys(localStorage).forEach(key => {
+            if (key.startsWith('demo_')) {
+                localStorage.removeItem(key);
+            }
+        });
+
         setSession({
             user: { email: 'demo@prosperity.app', id: 'demo-user' },
             isDemo: true
