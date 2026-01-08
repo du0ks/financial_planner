@@ -68,9 +68,20 @@ export default function ExpensesView({ session }) {
 
         try {
             console.log('Fetching link token for user:', userId);
+
+            // Get fresh session to ensure valid JWT
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+
+            if (!token) throw new Error("No active session");
+
             const { data, error } = await supabase.functions.invoke('plaid-link-token', {
-                body: { user_id: userId }
+                body: { user_id: userId },
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
             });
+
             console.log('Link token response:', { data, error });
             if (error) throw error;
             if (data?.error) {
@@ -109,8 +120,17 @@ export default function ExpensesView({ session }) {
         setLoading(true);
         setError(null);
         try {
+            // Get fresh session
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+
+            if (!token) throw new Error("No active session");
+
             const { data, error } = await supabase.functions.invoke('plaid-get-transactions', {
-                body: { user_id: userId }
+                body: { user_id: userId },
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
             });
             if (error) throw error;
             if (data?.error) {
