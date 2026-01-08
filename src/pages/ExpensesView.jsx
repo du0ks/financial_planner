@@ -80,7 +80,25 @@ export default function ExpensesView({ session }) {
             setLinkToken(data.link_token);
         } catch (err) {
             console.error('Failed to get link token:', err);
-            setError('Failed to connect: ' + (err.message || 'Unknown error'));
+
+            // Try to extract detailed error info
+            let errorMessage = err.message || 'Unknown error';
+
+            // If it's a FunctionsHttpError, it might have context
+            if (err.context && typeof err.context === 'object') {
+                console.log('Error context:', err.context);
+                try {
+                    const ctxJson = await err.context.json();
+                    console.log('Error body JSON:', ctxJson);
+                    if (ctxJson.error) {
+                        errorMessage = `Edge Function Error: ${ctxJson.error}`;
+                    }
+                } catch (e) {
+                    console.log('Could not read error body as JSON', e);
+                }
+            }
+
+            setError(errorMessage);
         }
     }, [userId, isDemo]);
 

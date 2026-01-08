@@ -2,11 +2,16 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers":
-        "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
+    // Log incoming request
+    console.log(`Incoming ${req.method} request`);
+    const headers = {};
+    req.headers.forEach((val, key) => headers[key] = val);
+    console.log("Headers:", JSON.stringify(headers));
+
     // Handle CORS preflight
     if (req.method === "OPTIONS") {
         return new Response("ok", { headers: corsHeaders });
@@ -15,29 +20,27 @@ serve(async (req) => {
     try {
         const PLAID_CLIENT_ID = Deno.env.get("PLAID_CLIENT_ID");
         const PLAID_SECRET = Deno.env.get("PLAID_SECRET");
-        const PLAID_ENV = Deno.env.get("PLAID_ENV") || "sandbox";
 
-        // Debug: Check if secrets are loaded
+        // Debug config
+        console.log("Config check:", {
+            hasClientId: !!PLAID_CLIENT_ID,
+            hasSecret: !!PLAID_SECRET
+        });
+
         if (!PLAID_CLIENT_ID || !PLAID_SECRET) {
-            console.error("Missing Plaid credentials:", {
-                hasClientId: !!PLAID_CLIENT_ID,
-                hasSecret: !!PLAID_SECRET
-            });
-            throw new Error("Plaid credentials not configured. Check Edge Function secrets.");
+            throw new Error("Missing Plaid credentials");
         }
 
-        const { user_id } = await req.json();
+        const body = await req.json();
+        const { user_id } = body;
 
         if (!user_id) {
             throw new Error("user_id is required");
         }
 
-        // Determine Plaid base URL
         const plaidBaseUrl = "https://sandbox.plaid.com";
+        console.log("Creating link token for:", user_id);
 
-        console.log("Creating link token for user:", user_id);
-
-        // Create Link Token
         const response = await fetch(`${plaidBaseUrl}/link/token/create`, {
             method: "POST",
             headers: {
@@ -46,9 +49,7 @@ serve(async (req) => {
             body: JSON.stringify({
                 client_id: PLAID_CLIENT_ID,
                 secret: PLAID_SECRET,
-                user: {
-                    client_user_id: user_id,
-                },
+                user: { client_user_id: user_id },
                 client_name: "Prosperity Planner",
                 products: ["transactions"],
                 country_codes: ["US"],
@@ -57,11 +58,14 @@ serve(async (req) => {
         });
 
         const data = await response.json();
-
-        console.log("Plaid response:", JSON.stringify(data));
+        console.log("Plaid API Response Status:", response.status);
 
         if (data.error_code) {
-            throw new Error(data.error_message || data.error_code || "Plaid API error");
+            console.error("Plaid Error:", data);
+            return new Response(JSON.stringify(data), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                status: 400,
+            });
         }
 
         return new Response(JSON.stringify({ link_token: data.link_token }), {
@@ -69,10 +73,13 @@ serve(async (req) => {
             status: 200,
         });
     } catch (error) {
-        console.error("Error:", error);
-        return new Response(JSON.stringify({ error: error.message || "Unknown error" }), {
+        console.error("Function Error:", error);
+        return new Response(JSON.stringify({
+            error: error.message,
+            stack: error.stack
+        }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
-            status: 400,
+            status: 500,
         });
     }
 });

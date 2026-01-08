@@ -19,13 +19,29 @@ serve(async (req) => {
         const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
         const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
+        console.log("Environment check:", {
+            hasPlaidClientId: !!PLAID_CLIENT_ID,
+            hasPlaidSecret: !!PLAID_SECRET,
+            hasSupabaseUrl: !!SUPABASE_URL,
+            hasServiceRoleKey: !!SUPABASE_SERVICE_ROLE_KEY
+        });
+
+        if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+            // Return empty transactions if DB not configured - this is OK
+            console.log("No SUPABASE credentials - returning empty transactions");
+            return new Response(JSON.stringify({ transactions: [], accounts: [] }), {
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                status: 200,
+            });
+        }
+
         const { user_id } = await req.json();
 
         if (!user_id) {
             throw new Error("user_id is required");
         }
 
-        const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
         // Get all linked accounts for this user
         const { data: accounts, error: accountsError } = await supabase
