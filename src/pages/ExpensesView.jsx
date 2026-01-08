@@ -8,42 +8,59 @@ import {
 } from 'lucide-react';
 
 // Category icon mapping
+// Comprehensive Category Icon Mapping for Plaid
 const categoryIcons = {
-    'Food and Drink': Utensils,
-    'Travel': Plane,
+    'Food And Drink': Utensils,
+    'General Merchandise': ShoppingCart,
     'Transportation': Car,
-    'Transfer': RefreshCw,
-    'Payment': DollarSign,
-    'Shops': ShoppingCart,
-    'Recreation': Film,
-    'Service': Wifi,
-    'Community': Heart,
-    'Healthcare': Heart,
-    'Bank Fees': Building2,
+    'Rent And Utilities': Home,
+    'Travel': Plane,
+    'Transfer Out': RefreshCw,
+    'Transfer In': RefreshCw,
+    'Income': DollarSign,
+    'Personal Care': Heart,
+    'General Services': Wifi,
+    'Government And Non Profit': Building2,
+    'Medical': Heart,
+    'Bank Fees': AlertCircle,
+    'Entertainment': Film,
+    'Loan Payments': Building2,
+    'Other': MoreHorizontal
 };
 
 const getCategoryIcon = (category) => {
     if (!category || !category[0]) return MoreHorizontal;
     const mainCategory = category[0];
-    return categoryIcons[mainCategory] || MoreHorizontal;
+
+    // Fuzzy match or exact match
+    const key = Object.keys(categoryIcons).find(k => mainCategory.includes(k)) || 'Other';
+    return categoryIcons[key] || MoreHorizontal;
 };
 
 const getCategoryColor = (category) => {
     if (!category || !category[0]) return 'bg-gray-500';
-    const colors = {
-        'Food and Drink': 'bg-orange-500',
-        'Travel': 'bg-blue-500',
-        'Transportation': 'bg-purple-500',
-        'Transfer': 'bg-gray-500',
-        'Payment': 'bg-green-500',
-        'Shops': 'bg-pink-500',
-        'Recreation': 'bg-red-500',
-        'Service': 'bg-cyan-500',
-        'Community': 'bg-yellow-500',
-        'Healthcare': 'bg-rose-500',
-        'Bank Fees': 'bg-slate-500',
+    const mainCategory = category[0];
+
+    const colorMap = {
+        'Food And Drink': 'bg-orange-500',
+        'General Merchandise': 'bg-pink-500',
+        'Transportation': 'bg-blue-600',
+        'Rent And Utilities': 'bg-indigo-500',
+        'Travel': 'bg-sky-500',
+        'Transfer Out': 'bg-gray-500',
+        'Transfer In': 'bg-green-500',
+        'Income': 'bg-emerald-500',
+        'Personal Care': 'bg-rose-400',
+        'General Services': 'bg-cyan-500',
+        'Government And Non Profit': 'bg-amber-500',
+        'Medical': 'bg-red-500',
+        'Bank Fees': 'bg-red-600',
+        'Entertainment': 'bg-purple-500',
+        'Loan Payments': 'bg-yellow-600',
     };
-    return colors[category[0]] || 'bg-gray-500';
+
+    const key = Object.keys(colorMap).find(k => mainCategory.includes(k));
+    return colorMap[key] || 'bg-slate-500';
 };
 
 export default function ExpensesView({ session }) {
@@ -299,21 +316,28 @@ export default function ExpensesView({ session }) {
                             <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Spending Trend (Last 14 Days)</h3>
                             <TrendingUp className="w-5 h-5 text-gray-400" />
                         </div>
-                        <div className="h-40 flex items-end justify-between gap-2">
+                        <div className="h-48 flex items-end justify-between gap-3 px-2">
                             {sortedDates.map((date) => {
                                 const amount = dailySpending[date] || 0;
-                                const heightPercent = Math.max(10, (amount / maxDailySpend) * 100);
+                                // Force at least 5% height if there is spending
+                                const heightPercent = amount > 0 ? Math.max(5, (amount / maxDailySpend) * 100) : 0;
+
                                 return (
-                                    <div key={date} className="flex flex-col items-center flex-1 gap-2 group">
-                                        <div
-                                            className="w-full bg-blue-500/20 dark:bg-blue-500/10 rounded-t-sm relative transition-all group-hover:bg-blue-500/40"
-                                            style={{ height: `${heightPercent}%` }}
-                                        >
-                                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                                                ${amount.toFixed(2)}
+                                    <div key={date} className="flex flex-col items-center flex-1 gap-2 group h-full justify-end">
+                                        <div className="w-full relative flex items-end justify-center h-full">
+                                            <div
+                                                className={`w-full max-w-[20px] rounded-t-lg transition-all duration-500 ${amount > 0 ? 'bg-indigo-500 dark:bg-indigo-400 hover:bg-indigo-400 dark:hover:bg-indigo-300' : 'bg-gray-100 dark:bg-gray-800'}`}
+                                                style={{ height: amount > 0 ? `${heightPercent}%` : '4px' }}
+                                            >
+                                                {amount > 0 && (
+                                                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-[10px] font-bold px-2 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all transform translate-y-2 group-hover:translate-y-0 whitespace-nowrap shadow-xl z-20">
+                                                        ${amount.toFixed(2)}
+                                                        <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-2 h-2 bg-gray-900 dark:bg-white rotate-45"></div>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
-                                        <span className="text-[10px] text-gray-400 rotate-0 truncate w-full text-center">
+                                        <span className="text-[10px] font-medium text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors">
                                             {new Date(date).getDate()}
                                         </span>
                                     </div>
