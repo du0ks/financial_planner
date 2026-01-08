@@ -402,17 +402,32 @@ export default function ExpensesView({ session }) {
                             displayCat = displayCat.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
                             const IconComponent = getCategoryIcon([displayCat]);
+                            const categoryColor = getCategoryColor([displayCat]);
+
+                            // Merchant Initial for fallback logo
+                            const merchantInitial = (tx.name || tx.merchant_name || "?").charAt(0).toUpperCase();
 
                             return (
                                 <div key={tx.transaction_id} className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                                    <div className={`w-10 h-10 rounded-xl ${getCategoryColor([displayCat])} flex items-center justify-center`}>
-                                        <IconComponent className="w-5 h-5 text-white" />
+                                    {/* Icon / Logo Area */}
+                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${categoryColor} bg-opacity-20 relative overflow-hidden`}>
+                                        <div className={`absolute inset-0 opacity-20 ${categoryColor}`}></div>
+                                        <span className="font-black text-xl text-gray-700 dark:text-white z-10 opacity-50">{merchantInitial}</span>
+                                        <div className="absolute bottom-0 right-0 p-1 bg-white dark:bg-gray-900 rounded-tl-lg">
+                                            <IconComponent className={`w-3 h-3 ${categoryColor.replace('bg-', 'text-')}`} />
+                                        </div>
                                     </div>
+
                                     <div className="flex-1 min-w-0">
-                                        <p className="font-medium text-gray-900 dark:text-white truncate">{tx.name}</p>
-                                        <p className="text-xs text-gray-500">{tx.date} • {displayCat}</p>
+                                        <p className="font-bold text-gray-900 dark:text-white truncate text-base">{tx.name}</p>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400">
+                                                {displayCat}
+                                            </span>
+                                            <span className="text-xs text-gray-400">{tx.date}</span>
+                                        </div>
                                     </div>
-                                    <div className={`font-bold ${tx.amount > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                                    <div className={`text-lg font-black ${tx.amount > 0 ? 'text-gray-900 dark:text-white' : 'text-green-500'}`}>
                                         {tx.amount > 0 ? '-' : '+'}${Math.abs(tx.amount).toFixed(2)}
                                     </div>
                                 </div>
