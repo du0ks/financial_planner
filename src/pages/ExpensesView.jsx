@@ -56,18 +56,31 @@ export default function ExpensesView({ session }) {
     const userId = session?.user?.id;
     const isDemo = session?.isDemo;
 
+    // Debug log
+    console.log('ExpensesView session:', { userId, isDemo, session });
+
     // Fetch link token for Plaid
     const fetchLinkToken = useCallback(async () => {
-        if (!userId || isDemo) return;
+        if (!userId || isDemo) {
+            console.log('Skipping fetchLinkToken:', { userId, isDemo });
+            return;
+        }
 
         try {
+            console.log('Fetching link token for user:', userId);
             const { data, error } = await supabase.functions.invoke('plaid-link-token', {
                 body: { user_id: userId }
             });
+            console.log('Link token response:', { data, error });
             if (error) throw error;
+            if (data?.error) {
+                setError(data.error);
+                return;
+            }
             setLinkToken(data.link_token);
         } catch (err) {
             console.error('Failed to get link token:', err);
+            setError('Failed to connect: ' + (err.message || 'Unknown error'));
         }
     }, [userId, isDemo]);
 
@@ -82,8 +95,12 @@ export default function ExpensesView({ session }) {
                 body: { user_id: userId }
             });
             if (error) throw error;
-            setTransactions(data.transactions || []);
-            setAccounts(data.accounts || []);
+            if (data?.error) {
+                setError(data.error);
+                return;
+            }
+            setTransactions(data?.transactions || []);
+            setAccounts(data?.accounts || []);
         } catch (err) {
             setError(err.message);
         } finally {

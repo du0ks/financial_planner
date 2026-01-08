@@ -17,6 +17,15 @@ serve(async (req) => {
         const PLAID_SECRET = Deno.env.get("PLAID_SECRET");
         const PLAID_ENV = Deno.env.get("PLAID_ENV") || "sandbox";
 
+        // Debug: Check if secrets are loaded
+        if (!PLAID_CLIENT_ID || !PLAID_SECRET) {
+            console.error("Missing Plaid credentials:", {
+                hasClientId: !!PLAID_CLIENT_ID,
+                hasSecret: !!PLAID_SECRET
+            });
+            throw new Error("Plaid credentials not configured. Check Edge Function secrets.");
+        }
+
         const { user_id } = await req.json();
 
         if (!user_id) {
@@ -24,12 +33,9 @@ serve(async (req) => {
         }
 
         // Determine Plaid base URL
-        const plaidBaseUrl =
-            PLAID_ENV === "sandbox"
-                ? "https://sandbox.plaid.com"
-                : PLAID_ENV === "development"
-                    ? "https://development.plaid.com"
-                    : "https://production.plaid.com";
+        const plaidBaseUrl = "https://sandbox.plaid.com";
+
+        console.log("Creating link token for user:", user_id);
 
         // Create Link Token
         const response = await fetch(`${plaidBaseUrl}/link/token/create`, {
@@ -45,15 +51,17 @@ serve(async (req) => {
                 },
                 client_name: "Prosperity Planner",
                 products: ["transactions"],
-                country_codes: ["US", "GB", "DE", "FR", "ES", "IT", "NL", "BE", "AT", "IE", "PT", "CZ"],
+                country_codes: ["US"],
                 language: "en",
             }),
         });
 
         const data = await response.json();
 
+        console.log("Plaid response:", JSON.stringify(data));
+
         if (data.error_code) {
-            throw new Error(data.error_message || "Plaid API error");
+            throw new Error(data.error_message || data.error_code || "Plaid API error");
         }
 
         return new Response(JSON.stringify({ link_token: data.link_token }), {
@@ -61,7 +69,8 @@ serve(async (req) => {
             status: 200,
         });
     } catch (error) {
-        return new Response(JSON.stringify({ error: error.message }), {
+        console.error("Error:", error);
+        return new Response(JSON.stringify({ error: error.message || "Unknown error" }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
             status: 400,
         });
