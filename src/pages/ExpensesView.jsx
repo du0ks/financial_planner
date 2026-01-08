@@ -177,37 +177,43 @@ export default function ExpensesView({ session }) {
         onSuccess,
     });
 
-    // Calculate spending summary
+    // Calculate spending summary with better category handling
     const totalSpent = transactions.reduce((sum, tx) => sum + (tx.amount > 0 ? tx.amount : 0), 0);
+
     const categoryTotals = transactions.reduce((acc, tx) => {
-        const cat = tx.category?.[0] || 'Other';
+        // Handle Plaid's category array or use personal_finance_category
+        let cat = 'Other';
+        if (tx.personal_finance_category?.primary) {
+            cat = tx.personal_finance_category.primary;
+        } else if (tx.category && tx.category.length > 0) {
+            cat = tx.category[0];
+        }
+
+        // Clean up category names
+        cat = cat.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
         if (tx.amount > 0) {
             acc[cat] = (acc[cat] || 0) + tx.amount;
         }
         return acc;
     }, {});
+
     const topCategory = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1])[0];
     const dailyAverage = transactions.length > 0 ? totalSpent / 30 : 0;
 
-    // Demo mode view
-    if (isDemo) {
-        return (
-            <div className="space-y-6">
-                <div className="text-center py-16">
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full mb-4">
-                        <AlertCircle className="w-8 h-8 text-gray-400" />
-                    </div>
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                        Bank Connection Unavailable in Demo
-                    </h2>
-                    <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
-                        Create an account to connect your bank and see your real expenses,
-                        spending insights, and AI-powered financial advice.
-                    </p>
-                </div>
-            </div>
-        );
-    }
+    // Prepare data for Spending Trend Chart
+    const dailySpending = transactions.reduce((acc, tx) => {
+        if (tx.amount <= 0) return acc;
+        const date = tx.date; // already YYYY-MM-DD
+        acc[date] = (acc[date] || 0) + tx.amount;
+        return acc;
+    }, {});
+
+    // Sort dates and get last 14 days for cleaner chart
+    const sortedDates = Object.keys(dailySpending).sort().slice(-14);
+
+    // Find max value for scaling
+    const maxDailySpend = Math.max(...Object.values(dailySpending), 100);
 
     return (
         <div className="space-y-6">
@@ -285,39 +291,72 @@ export default function ExpensesView({ session }) {
                 </div>
             )}
 
-            {/* Category Breakdown */}
-            {Object.keys(categoryTotals).length > 0 && (
-                <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 border border-gray-100 dark:border-gray-800">
-                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Spending by Category</h3>
-                    <div className="space-y-3">
-                        {Object.entries(categoryTotals)
-                            .sort((a, b) => b[1] - a[1])
-                            .slice(0, 6)
-                            .map(([cat, amount]) => {
-                                const percentage = (amount / totalSpent) * 100;
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Spending Trend Chart */}
+                {Object.keys(dailySpending).length > 0 && (
+                    <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 border border-gray-100 dark:border-gray-800">
+                        <div className="flex items-center justify-between mb-6">
+                            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Spending Trend (Last 14 Days)</h3>
+                            <TrendingUp className="w-5 h-5 text-gray-400" />
+                        </div>
+                        <div className="h-40 flex items-end justify-between gap-2">
+                            {sortedDates.map((date) => {
+                                const amount = dailySpending[date] || 0;
+                                const heightPercent = Math.max(10, (amount / maxDailySpend) * 100);
                                 return (
-                                    <div key={cat} className="flex items-center gap-4">
-                                        <div className={`w-8 h-8 rounded-lg ${getCategoryColor([cat])} flex items-center justify-center`}>
-                                            {React.createElement(getCategoryIcon([cat]), { className: 'w-4 h-4 text-white' })}
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="flex justify-between mb-1">
-                                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{cat}</span>
-                                                <span className="text-sm font-bold text-gray-900 dark:text-white">${amount.toFixed(2)}</span>
-                                            </div>
-                                            <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                                                <div
-                                                    className={`h-full ${getCategoryColor([cat])} rounded-full transition-all duration-500`}
-                                                    style={{ width: `${percentage}%` }}
-                                                />
+                                    <div key={date} className="flex flex-col items-center flex-1 gap-2 group">
+                                        <div
+                                            className="w-full bg-blue-500/20 dark:bg-blue-500/10 rounded-t-sm relative transition-all group-hover:bg-blue-500/40"
+                                            style={{ height: `${heightPercent}%` }}
+                                        >
+                                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                                                ${amount.toFixed(2)}
                                             </div>
                                         </div>
+                                        <span className="text-[10px] text-gray-400 rotate-0 truncate w-full text-center">
+                                            {new Date(date).getDate()}
+                                        </span>
                                     </div>
                                 );
                             })}
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
+
+                {/* Category Breakdown */}
+                {Object.keys(categoryTotals).length > 0 && (
+                    <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 border border-gray-100 dark:border-gray-800">
+                        <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Spending by Category</h3>
+                        <div className="space-y-3">
+                            {Object.entries(categoryTotals)
+                                .sort((a, b) => b[1] - a[1])
+                                .slice(0, 6)
+                                .map(([cat, amount]) => {
+                                    const percentage = (amount / totalSpent) * 100;
+                                    return (
+                                        <div key={cat} className="flex items-center gap-4">
+                                            <div className={`w-8 h-8 rounded-lg ${getCategoryColor([cat])} flex items-center justify-center`}>
+                                                {React.createElement(getCategoryIcon([cat]), { className: 'w-4 h-4 text-white' })}
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="flex justify-between mb-1">
+                                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{cat}</span>
+                                                    <span className="text-sm font-bold text-gray-900 dark:text-white">${amount.toFixed(2)}</span>
+                                                </div>
+                                                <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                                                    <div
+                                                        className={`h-full ${getCategoryColor([cat])} rounded-full transition-all duration-500`}
+                                                        style={{ width: `${percentage}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                        </div>
+                    </div>
+                )}
+            </div>
 
             {/* Transaction List */}
             {loading ? (
@@ -329,15 +368,25 @@ export default function ExpensesView({ session }) {
                     <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest p-6 pb-4">Recent Transactions</h3>
                     <div className="divide-y divide-gray-100 dark:divide-gray-800">
                         {transactions.slice(0, 20).map((tx) => {
-                            const IconComponent = getCategoryIcon(tx.category);
+                            // Correctly extract category for the list item
+                            let displayCat = 'Uncategorized';
+                            if (tx.personal_finance_category?.primary) {
+                                displayCat = tx.personal_finance_category.primary;
+                            } else if (tx.category && tx.category.length > 0) {
+                                displayCat = tx.category[0];
+                            }
+                            displayCat = displayCat.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+                            const IconComponent = getCategoryIcon([displayCat]);
+
                             return (
                                 <div key={tx.transaction_id} className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                                    <div className={`w-10 h-10 rounded-xl ${getCategoryColor(tx.category)} flex items-center justify-center`}>
+                                    <div className={`w-10 h-10 rounded-xl ${getCategoryColor([displayCat])} flex items-center justify-center`}>
                                         <IconComponent className="w-5 h-5 text-white" />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="font-medium text-gray-900 dark:text-white truncate">{tx.name}</p>
-                                        <p className="text-xs text-gray-500">{tx.date} • {tx.category?.[0] || 'Uncategorized'}</p>
+                                        <p className="text-xs text-gray-500">{tx.date} • {displayCat}</p>
                                     </div>
                                     <div className={`font-bold ${tx.amount > 0 ? 'text-red-500' : 'text-green-500'}`}>
                                         {tx.amount > 0 ? '-' : '+'}${Math.abs(tx.amount).toFixed(2)}
