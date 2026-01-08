@@ -57,6 +57,11 @@ export default function Layout({ children, activeTab, onTabChange, currency, onT
                         label="Investments"
                     />
                     <NavTab
+                        active={activeTab === 'expenses'}
+                        onClick={() => onTabChange('expenses')}
+                        label="Expenses"
+                    />
+                    <NavTab
                         active={activeTab === 'history'}
                         onClick={() => onTabChange('history')}
                         label="History"

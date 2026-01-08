@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import HistoryView from './pages/HistoryView';
 import InvestmentsView from './pages/InvestmentsView';
 import SettingsView from './pages/SettingsView';
+import ExpensesView from './pages/ExpensesView';
 import AuthView from './pages/AuthView';
 import useFinanceData from './hooks/useFinanceData';
 import { supabase } from './utils/supabase';
@@ -67,6 +68,8 @@ function App() {
                 return <Dashboard data={financeData} />;
             case 'investments':
                 return <InvestmentsView data={financeData} />;
+            case 'expenses':
+                return <ExpensesView session={session} />;
             case 'history':
                 return <HistoryView data={financeData} />;
             case 'settings':
