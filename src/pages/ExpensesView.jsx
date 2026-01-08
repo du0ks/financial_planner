@@ -30,16 +30,16 @@ const categoryIcons = {
 
 const getCategoryIcon = (category) => {
     if (!category || !category[0]) return MoreHorizontal;
-    const mainCategory = category[0];
+    const mainCategory = category[0].toLowerCase();
 
     // Fuzzy match or exact match
-    const key = Object.keys(categoryIcons).find(k => mainCategory.includes(k)) || 'Other';
+    const key = Object.keys(categoryIcons).find(k => mainCategory.includes(k.toLowerCase())) || 'Other';
     return categoryIcons[key] || MoreHorizontal;
 };
 
 const getCategoryColor = (category) => {
     if (!category || !category[0]) return 'bg-gray-500';
-    const mainCategory = category[0];
+    const mainCategory = category[0].toLowerCase();
 
     const colorMap = {
         'Food And Drink': 'bg-orange-500',
@@ -59,7 +59,7 @@ const getCategoryColor = (category) => {
         'Loan Payments': 'bg-yellow-600',
     };
 
-    const key = Object.keys(colorMap).find(k => mainCategory.includes(k));
+    const key = Object.keys(colorMap).find(k => mainCategory.includes(k.toLowerCase()));
     return colorMap[key] || 'bg-slate-500';
 };
 
@@ -206,8 +206,8 @@ export default function ExpensesView({ session }) {
             cat = tx.category[0];
         }
 
-        // Clean up category names
-        cat = cat.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        // Clean up category names - lowercase first to handle all-caps data
+        cat = cat.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
         if (tx.amount > 0) {
             acc[cat] = (acc[cat] || 0) + tx.amount;
@@ -319,8 +319,8 @@ export default function ExpensesView({ session }) {
                         <div className="h-48 flex items-end justify-between gap-3 px-2">
                             {sortedDates.map((date) => {
                                 const amount = dailySpending[date] || 0;
-                                // Force at least 5% height if there is spending
-                                const heightPercent = amount > 0 ? Math.max(5, (amount / maxDailySpend) * 100) : 0;
+                                // Significantly smaller floor (2%) to show disparaty between $6 and $500
+                                const heightPercent = amount > 0 ? Math.max(2, (amount / maxDailySpend) * 100) : 0;
 
                                 return (
                                     <div key={date} className="flex flex-col items-center flex-1 gap-2 group h-full justify-end">
@@ -357,19 +357,21 @@ export default function ExpensesView({ session }) {
                                 .slice(0, 6)
                                 .map(([cat, amount]) => {
                                     const percentage = (amount / totalSpent) * 100;
+                                    const color = getCategoryColor([cat]);
+                                    const Icon = getCategoryIcon([cat]);
                                     return (
                                         <div key={cat} className="flex items-center gap-4">
-                                            <div className={`w-8 h-8 rounded-lg ${getCategoryColor([cat])} flex items-center justify-center`}>
-                                                {React.createElement(getCategoryIcon([cat]), { className: 'w-4 h-4 text-white' })}
+                                            <div className={`w-10 h-10 rounded-xl ${color} flex items-center justify-center shadow-lg shadow-${color.split('-')[1]}-500/20`}>
+                                                <Icon className="w-5 h-5 text-white" />
                                             </div>
                                             <div className="flex-1">
-                                                <div className="flex justify-between mb-1">
-                                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{cat}</span>
-                                                    <span className="text-sm font-bold text-gray-900 dark:text-white">${amount.toFixed(2)}</span>
+                                                <div className="flex justify-between mb-1.5">
+                                                    <span className="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-tight">{cat}</span>
+                                                    <span className="text-sm font-black text-gray-900 dark:text-white">${amount.toFixed(2)}</span>
                                                 </div>
                                                 <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
                                                     <div
-                                                        className={`h-full ${getCategoryColor([cat])} rounded-full transition-all duration-500`}
+                                                        className={`h-full ${color} rounded-full transition-all duration-1000 ease-out`}
                                                         style={{ width: `${percentage}%` }}
                                                     />
                                                 </div>
@@ -388,46 +390,49 @@ export default function ExpensesView({ session }) {
                     <Loader2 className="w-8 h-8 text-green-500 animate-spin" />
                 </div>
             ) : transactions.length > 0 ? (
-                <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 overflow-hidden">
+                <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 overflow-hidden shadow-sm">
                     <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest p-6 pb-4">Recent Transactions</h3>
                     <div className="divide-y divide-gray-100 dark:divide-gray-800">
                         {transactions.slice(0, 20).map((tx) => {
-                            // Correctly extract category for the list item
                             let displayCat = 'Uncategorized';
                             if (tx.personal_finance_category?.primary) {
                                 displayCat = tx.personal_finance_category.primary;
                             } else if (tx.category && tx.category.length > 0) {
                                 displayCat = tx.category[0];
                             }
-                            displayCat = displayCat.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+                            // NORMALIZE: lowercase then uppercase first letters to fix all-caps "FOOD AND DRINK"
+                            displayCat = displayCat.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
                             const IconComponent = getCategoryIcon([displayCat]);
                             const categoryColor = getCategoryColor([displayCat]);
-
-                            // Merchant Initial for fallback logo
-                            const merchantInitial = (tx.name || tx.merchant_name || "?").charAt(0).toUpperCase();
+                            const merchantInitial = (tx.name || "?").charAt(0).toUpperCase();
 
                             return (
-                                <div key={tx.transaction_id} className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                                    {/* Icon / Logo Area */}
-                                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${categoryColor} bg-opacity-20 relative overflow-hidden`}>
-                                        <div className={`absolute inset-0 opacity-20 ${categoryColor}`}></div>
-                                        <span className="font-black text-xl text-gray-700 dark:text-white z-10 opacity-50">{merchantInitial}</span>
-                                        <div className="absolute bottom-0 right-0 p-1 bg-white dark:bg-gray-900 rounded-tl-lg">
-                                            <IconComponent className={`w-3 h-3 ${categoryColor.replace('bg-', 'text-')}`} />
+                                <div key={tx.transaction_id} className="flex items-center gap-4 px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all cursor-default">
+                                    {/* Brand Logo / Initial fallback */}
+                                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 relative ${tx.logo_url ? 'bg-white p-2 border border-gray-100 dark:border-gray-700' : `${categoryColor} bg-opacity-10 dark:bg-opacity-20`}`}>
+                                        {tx.logo_url ? (
+                                            <img src={tx.logo_url} alt="" className="w-full h-full object-contain" />
+                                        ) : (
+                                            <span className={`font-black text-2xl ${categoryColor.replace('bg-', 'text-')}`}>{merchantInitial}</span>
+                                        )}
+                                        {/* Category Badge Icon */}
+                                        <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-lg ${categoryColor} flex items-center justify-center ring-4 ring-white dark:ring-gray-900 shadow-sm transition-transform hover:scale-110`}>
+                                            <IconComponent className="w-3.5 h-3.5 text-white" />
                                         </div>
                                     </div>
 
                                     <div className="flex-1 min-w-0">
-                                        <p className="font-bold text-gray-900 dark:text-white truncate text-base">{tx.name}</p>
+                                        <p className="font-black text-gray-900 dark:text-white truncate text-lg tracking-tight">{tx.name}</p>
                                         <div className="flex items-center gap-2 mt-0.5">
-                                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400">
+                                            <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${categoryColor} bg-opacity-10 ${categoryColor.replace('bg-', 'text-')}`}>
                                                 {displayCat}
                                             </span>
-                                            <span className="text-xs text-gray-400">{tx.date}</span>
+                                            <span className="text-xs font-medium text-gray-400">{tx.date}</span>
                                         </div>
                                     </div>
-                                    <div className={`text-lg font-black ${tx.amount > 0 ? 'text-gray-900 dark:text-white' : 'text-green-500'}`}>
+                                    <div className={`text-xl font-black ${tx.amount > 0 ? 'text-gray-900 dark:text-white' : 'text-emerald-500'}`}>
                                         {tx.amount > 0 ? '-' : '+'}${Math.abs(tx.amount).toFixed(2)}
                                     </div>
                                 </div>
