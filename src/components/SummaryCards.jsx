@@ -44,7 +44,7 @@ export default function SummaryCards({ totals, currency }) {
 
             {/* Debt */}
             <StatCard
-                label="Total Debt"
+                label="Total Debt/Expenses"
                 amount={totalDebt}
                 currency={currency}
                 isNegative
