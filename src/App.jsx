@@ -17,10 +17,16 @@ function App() {
 
     useEffect(() => {
         // Get initial session
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-            setAuthLoading(false);
-        });
+        supabase.auth.getSession()
+            .then(({ data: { session } }) => {
+                setSession(session);
+            })
+            .catch(err => {
+                console.error("Auth initialization failed:", err);
+            })
+            .finally(() => {
+                setAuthLoading(false);
+            });
 
         // Listen for changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
