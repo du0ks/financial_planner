@@ -1,87 +1,132 @@
-import React from 'react';
+import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { formatMoney } from '../utils/format';
-import { TrendingUp, TrendingDown, CreditCard, Wallet, DollarSign, Coins } from 'lucide-react';
 
-const getDynamicFontSize = (val) => {
-    const len = String(val).length;
-    if (len > 18) return 'text-base';
-    if (len > 15) return 'text-lg';
-    if (len > 12) return 'text-xl';
-    return 'text-2xl';
-};
+// Neon Grid design tokens (design_handoff_neon_grid/README.md) — this file now renders the
+// Money screen's hero panel only. The old nine-stat-card grid is gone; "Your cards" totals
+// live in Dashboard.jsx's section header instead.
+const CYAN = '#7ee9ff';
+const MAGENTA = '#ff5fb4';
+const TEXT_MUTED = '#bab8d8';
+const TEXT_DIM = '#a6a4c4';
+const TEXT_BODY = '#e2e0f7';
 
-export default function SummaryCards({ totals, currency }) {
-    const { totalLimit, totalDebt, totalAssets, overallNet, ccNet } = totals;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// README (State Management): "newest snapshot at least 28 days old, overallNet - snapshot.overallNet."
+function findBaselineSnapshot(history) {
+    const cutoff = Date.now() - 28 * DAY_MS;
+    const eligible = (history || []).filter((snap) => snap?.date && new Date(snap.date).getTime() <= cutoff);
+    if (!eligible.length) return null;
+    return eligible.reduce((newest, snap) => (
+        new Date(snap.date).getTime() > new Date(newest.date).getTime() ? snap : newest
+    ));
+}
+
+export default function SummaryCards({ totals, currency, history }) {
+    const { overallNet, totalAssets } = totals;
+    const baseline = findBaselineSnapshot(history);
+    const delta = baseline ? overallNet - baseline.overallNet : null;
+    const isDown = delta !== null && delta < 0;
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 lg:grid-rows-2 gap-4 md:gap-5 mb-8">
+        <section
+            className="relative overflow-hidden border p-6 md:px-[34px] md:pb-[40px] md:pt-[38px]"
+            style={{
+                borderColor: 'rgba(126,233,255,0.30)',
+                backgroundImage: 'linear-gradient(180deg, #0a0716 0%, #06040e 100%)',
+            }}
+        >
+            <GridTexture />
 
-            {/* Net Worth - Hero Card */}
-            <div className="lg:col-span-2 lg:row-span-2 relative overflow-hidden bg-purple-50 dark:bg-gradient-to-br dark:from-black dark:via-gray-900 dark:to-black rounded-[32px] p-8 text-purple-950 dark:text-white shadow-xl shadow-gray-950/20 flex flex-col justify-center border border-purple-100 dark:border-transparent">
-                <div className="absolute top-0 right-0 p-4 opacity-10 dark:opacity-10 text-purple-900 dark:text-white pointer-events-none">
-                    <Wallet size={120} />
-                </div>
-                <div className="relative z-10 flex flex-col items-start">
-                    <p className="text-purple-400 dark:text-gray-400 text-[10px] font-black uppercase tracking-[0.3em] mb-3 opacity-80 dark:opacity-60">Total Net Worth</p>
-                    <h2 className={`font-black tracking-tighter mb-5 leading-none transition-all ${getDynamicFontSize(formatMoney(overallNet, currency)) === 'text-2xl' ? 'text-4xl md:text-5xl' : 'text-2xl md:text-3xl'}`}>
-                        {formatMoney(overallNet, currency)}
-                    </h2>
-                    <div className={`inline-flex items-center px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${overallNet >= 0 ? 'bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20'}`}>
-                        {overallNet >= 0 ? <TrendingUp size={12} className="mr-2" /> : <TrendingDown size={12} className="mr-2" />}
-                        {overallNet >= 0 ? 'Stable Assets' : 'Debt Risk'}
+            <div className="relative z-10 flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
+                <div className="min-w-0">
+                    <p
+                        className="mb-4 font-mono text-[13px] font-medium uppercase tracking-[0.18em] md:text-[15px]"
+                        style={{ color: TEXT_MUTED }}
+                    >
+                        Everything you own, minus what you owe
+                    </p>
+                    <div className="flex flex-wrap items-baseline gap-6">
+                        <span
+                            className="font-display text-[50px] font-extrabold leading-[0.9] tracking-[-0.03em] text-white md:text-[96px]"
+                            style={{ textShadow: '0 0 22px rgba(126,233,255,0.35)' }}
+                        >
+                            {formatMoney(overallNet, currency)}
+                        </span>
+                        {delta !== null && <DeltaChip delta={delta} currency={currency} isDown={isDown} />}
                     </div>
+                    {delta !== null && (
+                        <p
+                            className="mt-5 max-w-[600px] text-[17px] md:text-[19px]"
+                            style={{ color: TEXT_BODY, textWrap: 'pretty' }}
+                        >
+                            {isDown
+                                ? "You're a little behind last month. Worth keeping an eye on."
+                                : "You're a little ahead of last month. Nothing needs your attention today."}
+                        </p>
+                    )}
+                </div>
+
+                <div className="shrink-0 md:text-right">
+                    <p className="font-mono text-[14px]" style={{ color: TEXT_MUTED }}>Cash you can touch</p>
+                    <p className="mt-2 font-mono text-[30px] font-semibold md:text-[38px]" style={{ color: CYAN }}>
+                        {formatMoney(totalAssets, currency)}
+                    </p>
+                    <p className="mt-1 text-[15px] md:text-[16px]" style={{ color: TEXT_DIM }}>before paying card debt</p>
                 </div>
             </div>
 
-            {/* Assets */}
-            <StatCard
-                label="Total Assets"
-                amount={totalAssets}
-                currency={currency}
-                icon={<DollarSign size={16} className="text-blue-500" />}
-                bgClass="bg-white dark:bg-gray-900"
+            <div
+                className="absolute inset-x-0 bottom-0 h-px"
+                style={{ backgroundColor: MAGENTA, boxShadow: '0 0 16px 1px rgba(255,95,180,0.45)' }}
             />
-
-            {/* Debt */}
-            <StatCard
-                label="Total Debt/Expenses"
-                amount={totalDebt}
-                currency={currency}
-                isNegative
-                icon={<TrendingDown size={16} className="text-red-500" />}
-                bgClass="bg-white dark:bg-gray-900"
-            />
-
-            {/* Credit Card Net */}
-            <div className="lg:col-span-2 bg-white dark:bg-gray-900 rounded-[32px] p-4 md:p-5 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center text-center md:items-start md:text-left hover:border-purple-500/20 transition-all group relative">
-                <div className="w-full flex items-center justify-center md:justify-between mb-2">
-                    <p className="text-gray-400 text-[10px] font-black uppercase tracking-[0.2em]">Card Position</p>
-                    <div className="absolute top-4 right-4 md:static p-1.5 bg-purple-500/10 rounded-lg group-hover:scale-110 transition-transform">
-                        <CreditCard className="text-purple-500" size={14} />
-                    </div>
-                </div>
-                <p className={`font-black tracking-tight leading-none ${ccNet >= 0 ? 'text-gray-900 dark:text-white' : 'text-red-500'} ${getDynamicFontSize(formatMoney(ccNet, currency))}`}>
-                    {formatMoney(ccNet, currency)}
-                </p>
-            </div>
-
-        </div>
+        </section>
     );
 }
 
-function StatCard({ label, amount, currency, icon, isNegative, bgClass }) {
-    const formattedValue = formatMoney(amount, currency);
+function DeltaChip({ delta, currency, isDown }) {
+    const Icon = isDown ? ArrowDownRight : ArrowUpRight;
+    const color = isDown ? MAGENTA : CYAN;
+    const sign = delta > 0 ? '+' : '';
     return (
-        <div className={`${bgClass} rounded-[32px] p-4 md:p-5 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center text-center md:items-start md:text-left hover:shadow-md transition-all group relative`}>
-            <div className="w-full flex items-center justify-center md:justify-between mb-2">
-                <p className="text-gray-400 text-[10px] font-black uppercase tracking-[0.2em]">{label}</p>
-                <div className={`absolute top-4 right-4 md:static p-2 rounded-xl group-hover:scale-110 transition-transform ${isNegative ? 'bg-red-500/10' : 'bg-blue-500/10'}`}>
-                    {icon}
-                </div>
-            </div>
-            <p className={`font-black tracking-tight leading-none ${isNegative ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'} ${getDynamicFontSize(formattedValue)}`}>
-                {formattedValue}
-            </p>
-        </div>
-    )
+        <span
+            className="inline-flex items-center gap-2 border px-[14px] py-[9px] font-mono text-[15px] font-semibold md:text-[17px]"
+            style={{
+                borderColor: isDown ? 'rgba(255,95,180,0.5)' : 'rgba(126,233,255,0.5)',
+                backgroundColor: isDown ? 'rgba(255,95,180,0.1)' : 'rgba(126,233,255,0.1)',
+                color,
+            }}
+        >
+            <Icon size={16} />
+            {sign}{formatMoney(delta, currency)} this month
+        </span>
+    );
+}
+
+function GridTexture() {
+    const mask = 'linear-gradient(180deg, transparent 10%, #000 94%)';
+    return (
+        <>
+            <div
+                className="pointer-events-none absolute inset-0 hidden opacity-[0.42] md:block"
+                style={{
+                    backgroundImage:
+                        'repeating-linear-gradient(90deg, rgba(126,233,255,0.20) 0 1px, transparent 1px 68px),' +
+                        'repeating-linear-gradient(0deg, rgba(255,95,180,0.14) 0 1px, transparent 1px 48px)',
+                    maskImage: mask,
+                    WebkitMaskImage: mask,
+                }}
+            />
+            <div
+                className="pointer-events-none absolute inset-0 opacity-[0.42] md:hidden"
+                style={{
+                    backgroundImage:
+                        'repeating-linear-gradient(90deg, rgba(126,233,255,0.20) 0 1px, transparent 1px 48px),' +
+                        'repeating-linear-gradient(0deg, rgba(255,95,180,0.14) 0 1px, transparent 1px 40px)',
+                    maskImage: mask,
+                    WebkitMaskImage: mask,
+                }}
+            />
+        </>
+    );
 }

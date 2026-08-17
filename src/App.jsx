@@ -3,8 +3,13 @@ import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import HistoryView from './pages/HistoryView';
 import InvestmentsView from './pages/InvestmentsView';
+// Planner tab is paused — still WIP, not ready to ship. Uncomment along with the
+// 'planner' case below and its entry in Layout.jsx's NAV_TABS to bring it back.
+// import PlannerView from './pages/PlannerView';
 import SettingsView from './pages/SettingsView';
-import ExpensesView from './pages/ExpensesView';
+// Spending tab is paused for a few months while it's reworked. Uncomment along with the
+// 'expenses' case below and its entry in Layout.jsx's NAV_TABS to bring it back.
+// import ExpensesView from './pages/ExpensesView';
 import AuthView from './pages/AuthView';
 import useFinanceData from './hooks/useFinanceData';
 import { supabase } from './utils/supabase';
@@ -74,12 +79,14 @@ function App() {
                 return <Dashboard data={financeData} />;
             case 'investments':
                 return <InvestmentsView data={financeData} />;
-            case 'expenses':
-                return <ExpensesView session={session} />;
+            // case 'expenses':
+            //     return <ExpensesView session={session} />;
             case 'history':
                 return <HistoryView data={financeData} />;
+            // case 'planner':
+            //     return <PlannerView data={financeData} />;
             case 'settings':
-                return <SettingsView data={financeData} />;
+                return <SettingsView data={financeData} session={session} />;
             default:
                 return <Dashboard data={financeData} />;
         }

@@ -1,5 +1,14 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+
+/* Tailwind v4 reads font families for its `font-*` utilities from an @theme block —
+   this project has no @config pointing at tailwind.config.js, so that file's `theme`
+   key is never read. Overriding --font-mono here is what makes `font-mono` (used
+   throughout the Neon Grid redesign for numbers, labels and buttons) resolve to
+   IBM Plex Mono instead of Tailwind's default monospace stack. */
+@theme {
+    --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+}
 
 :root {
     --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
@@ -11,7 +20,8 @@ body {
     margin: 0;
     padding: 0;
     min-height: 100vh;
-    background-color: #f3f4f6;
+    /* Neon Grid base background — the app shell (Layout.jsx) sits on top of this. */
+    background-color: #050409;
 
     /* Cross-browser Font Smoothing Harmonization */
     -webkit-font-smoothing: antialiased;

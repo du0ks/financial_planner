@@ -34,8 +34,9 @@ export default function InstallHint() {
     // Platform-specific content
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
+    // bottom-[148px] clears the new mobile brand bar (64px) + tab bar (68px), see Layout.jsx
     return (
-        <div className="fixed bottom-24 left-4 right-4 z-[100] animate-bounce-in">
+        <div className="fixed bottom-[148px] left-4 right-4 z-[100] animate-bounce-in">
             <div className="bg-white dark:bg-gray-900 rounded-3xl p-5 shadow-2xl border border-green-500/20 shadow-green-500/10 relative overflow-hidden">
                 <button
                     onClick={dismiss}

@@ -1,12 +1,28 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import useLocalStorage from './useLocalStorage';
 import { generateUUID } from '../utils/uuid';
 import { supabase } from '../utils/supabase';
 
+const DEFAULT_CARD_FIELDS = {
+    interestRate: 0,
+    statementDay: 31,
+    paymentDueDays: 8,
+    minimumPayment: 0,
+    currency: 'TRY'
+};
+
+const DEFAULT_OTHER_FIELDS = {
+    currency: 'TRY',
+    isRecurring: true,
+    recurrenceDay: 1,
+    category: 'other',
+    endDate: null
+};
+
 const DEFAULT_DATA = {
     cards: [
-        { id: 1, name: 'Card A (Main Card)', limit: 15000, money: 2000, debt: 3500 },
-        { id: 2, name: 'Card B (Backup)', limit: 5000, money: 0, debt: 0 },
+        { id: 1, name: 'Card A (Main Card)', limit: 15000, money: 2000, debt: 3500, ...DEFAULT_CARD_FIELDS },
+        { id: 2, name: 'Card B (Backup)', limit: 5000, money: 0, debt: 0, ...DEFAULT_CARD_FIELDS },
     ],
     funds: [
         { id: 101, name: 'Salary Account', amount: 8500 },
@@ -14,10 +30,101 @@ const DEFAULT_DATA = {
         { id: 103, name: 'Wallet / Cash', amount: 450 }
     ],
     others: [
-        { id: 201, name: 'Rent', amount: 0 },
-        { id: 202, name: 'Dorm / Tuition', amount: 0 }
+        { id: 201, name: 'Rent', amount: 0, ...DEFAULT_OTHER_FIELDS, category: 'housing' },
+        { id: 202, name: 'Dorm / Tuition', amount: 0, ...DEFAULT_OTHER_FIELDS }
     ]
 };
+
+const INVESTMENT_NAMES = {
+    gold: 'Gold Reserves',
+    euro: 'Euro Holdings',
+    usd: 'USD Holdings',
+    custom: 'Custom Investment'
+};
+
+const numericValue = (value) => parseFloat(value) || 0;
+const clampDay = (value, fallback) => Math.min(31, Math.max(1, numericValue(value) || fallback));
+
+const normalizeCards = (items) => (
+    Array.isArray(items)
+        ? items.map(card => ({
+            ...DEFAULT_CARD_FIELDS,
+            ...card,
+            statementDay: clampDay(card?.statementDay, DEFAULT_CARD_FIELDS.statementDay),
+            paymentDueDays: Math.max(0, numericValue(card?.paymentDueDays ?? DEFAULT_CARD_FIELDS.paymentDueDays)),
+            currency: card?.currency || DEFAULT_CARD_FIELDS.currency
+        }))
+        : DEFAULT_DATA.cards
+);
+
+const normalizeFunds = (items) => Array.isArray(items) ? items : DEFAULT_DATA.funds;
+
+const normalizeOthers = (items) => (
+    Array.isArray(items)
+        ? items.map(other => ({
+            ...DEFAULT_OTHER_FIELDS,
+            ...other,
+            recurrenceDay: clampDay(other?.recurrenceDay, DEFAULT_OTHER_FIELDS.recurrenceDay),
+            currency: other?.currency || DEFAULT_OTHER_FIELDS.currency,
+            endDate: other?.endDate || null
+        }))
+        : DEFAULT_DATA.others
+);
+
+const createGoldInvestment = (amount = 0) => ({
+    id: generateUUID(),
+    type: 'gold',
+    name: INVESTMENT_NAMES.gold,
+    amount: numericValue(amount)
+});
+
+const normalizeInvestments = (items, legacyGoldGrams = 0) => {
+    if (!Array.isArray(items)) {
+        return numericValue(legacyGoldGrams) > 0 ? [createGoldInvestment(legacyGoldGrams)] : [];
+    }
+
+    return items
+        .filter(item => item && typeof item === 'object')
+        .map(item => ({
+            id: item.id || generateUUID(),
+            type: ['gold', 'euro', 'usd', 'custom'].includes(item.type) ? item.type : 'custom',
+            name: item.name || INVESTMENT_NAMES[item.type] || INVESTMENT_NAMES.custom,
+            amount: numericValue(item.amount)
+        }));
+};
+
+const normalizeIncomes = (items) => (
+    Array.isArray(items)
+        ? items
+            .filter(item => item && typeof item === 'object')
+            .map(income => ({
+                id: income.id || generateUUID(),
+                name: income.name || 'Income',
+                amount: numericValue(income.amount),
+                currency: income.currency || 'TRY',
+                date: income.date || new Date().toISOString().split('T')[0],
+                isRecurring: Boolean(income.isRecurring),
+                recurrenceDay: income.isRecurring ? clampDay(income.recurrenceDay, 1) : null,
+                endDate: income.endDate || null
+            }))
+        : []
+);
+
+const normalizeEvents = (items) => (
+    Array.isArray(items)
+        ? items
+            .filter(item => item && typeof item === 'object')
+            .map(event => ({
+                id: event.id || generateUUID(),
+                name: event.name || 'Future Event',
+                date: event.date || new Date().toISOString().split('T')[0],
+                type: ['milestone', 'expense', 'income', 'lock'].includes(event.type) ? event.type : 'milestone',
+                amount: numericValue(event.amount)
+            }))
+        : []
+);
+
+const isStillActive = (endDate) => !endDate || new Date(`${endDate}T23:59:59`) >= new Date();
 
 export default function useFinanceData(session) {
     const prefix = session?.isDemo ? 'demo_' : 'finance_';
@@ -27,10 +134,37 @@ export default function useFinanceData(session) {
     const [rawOthers, setOthers] = useLocalStorage(`${prefix}others_v3`, DEFAULT_DATA.others);
     const [currency, setCurrency] = useLocalStorage(`${prefix}currency_v3`, 'TRY');
     const [history, setHistory] = useLocalStorage(`${prefix}history_v3`, []);
-    const [goldGrams, setGoldGrams] = useLocalStorage(`${prefix}gold_v3`, 0);
+    const [legacyGoldGrams, setLegacyGoldGrams] = useLocalStorage(`${prefix}gold_v3`, 0);
+    const [rawInvestments, setInvestments] = useLocalStorage(`${prefix}investments_v3`, null);
+    const [rawIncomes, setIncomes] = useLocalStorage(`${prefix}incomes_v3`, []);
+    const [rawEvents, setEvents] = useLocalStorage(`${prefix}events_v3`, []);
     const [goldPrice, setGoldPrice] = useState(0); // USD per gram
     const [goldChanges, setGoldChanges] = useState({ d1: 0, w1: 0, m1: 0, y1: 0 });
     const [exchangeRates, setExchangeRates] = useState({ TRY: 1, UAH: 1, EUR: 1, USD: 1 });
+
+    const cards = normalizeCards(rawCards);
+    const funds = normalizeFunds(rawFunds);
+    const others = normalizeOthers(rawOthers);
+    const investments = normalizeInvestments(rawInvestments, legacyGoldGrams);
+    const incomes = normalizeIncomes(rawIncomes);
+    const events = normalizeEvents(rawEvents);
+    const historyList = useMemo(() => Array.isArray(history) ? history : [], [history]);
+
+    // Move the legacy gold scalar into the investments collection once the new key exists.
+    useEffect(() => {
+        if (!Array.isArray(rawInvestments)) {
+            setInvestments(normalizeInvestments(rawInvestments, legacyGoldGrams));
+        }
+    }, [rawInvestments, legacyGoldGrams, setInvestments]);
+
+    // Keep the legacy storage/cloud field coherent for older clients and backups.
+    useEffect(() => {
+        if (!Array.isArray(rawInvestments)) return;
+        const storedGold = numericValue(rawInvestments.find(item => item?.type === 'gold')?.amount);
+        if (storedGold !== numericValue(legacyGoldGrams)) {
+            setLegacyGoldGrams(storedGold);
+        }
+    }, [rawInvestments, legacyGoldGrams, setLegacyGoldGrams]);
 
     // Sync from Supabase on Login
     useEffect(() => {
@@ -44,22 +178,28 @@ export default function useFinanceData(session) {
                 .single();
 
             if (data && !error) {
-                // Simplistic sync: Cloud wins if it exists
-                setCards(data.cards);
-                setFunds(data.funds);
-                setOthers(data.others);
-                setCurrency(data.currency);
-                setHistory(data.history);
-                setGoldGrams(data.gold_grams || 0);
+                const extendedData = data.extended_data || {};
+
+                // Cloud wins if it exists, while old records receive new defaults.
+                setCards(normalizeCards(data.cards));
+                setFunds(normalizeFunds(data.funds));
+                setOthers(normalizeOthers(data.others));
+                setCurrency(data.currency || 'TRY');
+                setHistory(Array.isArray(data.history) ? data.history : []);
+                setLegacyGoldGrams(data.gold_grams || 0);
+                setInvestments(normalizeInvestments(extendedData.investments, data.gold_grams));
+                setIncomes(normalizeIncomes(extendedData.incomes));
+                setEvents(normalizeEvents(extendedData.events));
                 console.log("Cloud sync complete: Data loaded from Supabase");
             } else if (error && error.code === 'PGRST116') {
-                // No record yet, push local data to cloud
                 await pushToCloud();
                 console.log("Cloud initialized: Local data pushed to Supabase");
             }
         };
 
         fetchData();
+    // Local edits sync through the debounced cloud effect below; this fetch is session-scoped.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [session]);
 
     // Fetch Market Data (Gold & FX)
@@ -107,18 +247,44 @@ export default function useFinanceData(session) {
         return () => clearInterval(interval);
     }, []);
 
+    const convertCurrencyAmount = useCallback((amount, sourceCurrency = currency) => {
+        const sourceRate = exchangeRates[sourceCurrency] || 1;
+        const displayRate = exchangeRates[currency] || 1;
+        return numericValue(amount) * (displayRate / sourceRate);
+    }, [currency, exchangeRates]);
+
+    const primaryGold = investments.find(investment => investment.type === 'gold');
+    const goldGrams = numericValue(primaryGold?.amount);
+    const goldPricePerGram = goldPrice * (exchangeRates[currency] || 1);
+    const goldValue = goldGrams * goldPricePerGram;
+
+    const getInvestmentValue = useCallback((investment) => {
+        if (investment.type === 'gold') return numericValue(investment.amount) * goldPricePerGram;
+        if (investment.type === 'euro') return convertCurrencyAmount(investment.amount, 'EUR');
+        if (investment.type === 'usd') return convertCurrencyAmount(investment.amount, 'USD');
+        return numericValue(investment.amount);
+    }, [convertCurrencyAmount, goldPricePerGram]);
+
     // Push to Supabase on changes (throttled)
     const pushToCloud = useCallback(async () => {
         if (!session?.user?.id || session?.isDemo) return;
 
+        const normalizedInvestments = normalizeInvestments(rawInvestments, legacyGoldGrams);
+        const legacyGold = numericValue(normalizedInvestments.find(item => item.type === 'gold')?.amount);
         const payload = {
             user_id: session.user.id,
-            cards: rawCards,
-            funds: rawFunds,
-            others: rawOthers,
-            currency: currency,
-            history: history,
-            gold_grams: goldGrams,
+            cards: normalizeCards(rawCards),
+            funds: normalizeFunds(rawFunds),
+            others: normalizeOthers(rawOthers),
+            currency,
+            history: historyList,
+            gold_grams: legacyGold,
+            extended_data: {
+                investments: normalizedInvestments,
+                incomes: normalizeIncomes(rawIncomes),
+                events: normalizeEvents(rawEvents),
+                version: 2
+            },
             updated_at: new Date().toISOString()
         };
 
@@ -127,7 +293,7 @@ export default function useFinanceData(session) {
             .upsert(payload, { onConflict: 'user_id' });
 
         if (error) console.error("Cloud push failed:", error);
-    }, [session, rawCards, rawFunds, rawOthers, currency, history, goldGrams]);
+    }, [session, rawCards, rawFunds, rawOthers, currency, historyList, rawInvestments, rawIncomes, rawEvents, legacyGoldGrams]);
 
     // Track changes and push
     useEffect(() => {
@@ -136,7 +302,7 @@ export default function useFinanceData(session) {
         }, 2000); // 2 second debounce
 
         return () => clearTimeout(timer);
-    }, [rawCards, rawFunds, rawOthers, currency, history, goldGrams, pushToCloud]);
+    }, [rawCards, rawFunds, rawOthers, currency, history, rawInvestments, rawIncomes, rawEvents, legacyGoldGrams, pushToCloud]);
 
     const toggleCurrency = () => {
         const currencies = ['TRY', 'UAH', 'EUR', 'USD'];
@@ -145,14 +311,16 @@ export default function useFinanceData(session) {
         setCurrency(currencies[nextIndex]);
     };
 
-    // Ensure all data types are correct
-    const cards = Array.isArray(rawCards) ? rawCards : DEFAULT_DATA.cards;
-    const funds = Array.isArray(rawFunds) ? rawFunds : DEFAULT_DATA.funds;
-    const others = Array.isArray(rawOthers) ? rawOthers : DEFAULT_DATA.others;
-    const historyList = Array.isArray(history) ? history : [];
-
     // CRUD for Cards
-    const addCard = () => setCards([...cards, { id: generateUUID(), name: 'New Card', limit: 0, money: 0, debt: 0 }]);
+    const addCard = () => setCards([...cards, {
+        id: generateUUID(),
+        name: 'New Card',
+        limit: 0,
+        money: 0,
+        debt: 0,
+        ...DEFAULT_CARD_FIELDS,
+        currency
+    }]);
     const updateCard = (id, field, value) => {
         setCards(cards.map(card => card.id === id ? { ...card, [field]: value } : card));
     };
@@ -174,7 +342,13 @@ export default function useFinanceData(session) {
     };
 
     // CRUD for Others
-    const addOther = () => setOthers([...others, { id: generateUUID(), name: 'New Payment', amount: 0 }]);
+    const addOther = () => setOthers([...others, {
+        id: generateUUID(),
+        name: 'New Payment',
+        amount: 0,
+        ...DEFAULT_OTHER_FIELDS,
+        currency
+    }]);
     const updateOther = (id, field, value) => {
         setOthers(others.map(other => other.id === id ? { ...other, [field]: value } : other));
     };
@@ -184,23 +358,96 @@ export default function useFinanceData(session) {
         }
     };
 
+    // CRUD for Investments
+    const addInvestment = (type = 'custom', amount = 0) => setInvestments([
+        ...investments,
+        {
+            id: generateUUID(),
+            type,
+            name: INVESTMENT_NAMES[type] || INVESTMENT_NAMES.custom,
+            amount: numericValue(amount)
+        }
+    ]);
+    const updateInvestment = (id, field, value) => {
+        setInvestments(investments.map(investment => (
+            investment.id === id ? { ...investment, [field]: value } : investment
+        )));
+    };
+    const removeInvestment = (id) => {
+        if (window.confirm('Delete this investment?')) {
+            setInvestments(investments.filter(investment => investment.id !== id));
+        }
+    };
+    const setGoldGrams = useCallback((value) => {
+        const nextAmount = Math.max(0, numericValue(typeof value === 'function' ? value(goldGrams) : value));
+
+        if (primaryGold) {
+            setInvestments(investments.map(investment => (
+                investment.id === primaryGold.id ? { ...investment, amount: nextAmount } : investment
+            )));
+        } else {
+            setInvestments([createGoldInvestment(nextAmount), ...investments]);
+        }
+    }, [goldGrams, investments, primaryGold, setInvestments]);
+
+    // CRUD for Income
+    const addIncome = () => setIncomes([...incomes, {
+        id: generateUUID(),
+        name: 'New Income',
+        amount: 0,
+        currency,
+        date: new Date().toISOString().split('T')[0],
+        isRecurring: true,
+        recurrenceDay: 1,
+        endDate: null
+    }]);
+    const updateIncome = (id, field, value) => {
+        setIncomes(incomes.map(income => income.id === id ? { ...income, [field]: value } : income));
+    };
+    const removeIncome = (id) => {
+        if (window.confirm('Delete this income?')) {
+            setIncomes(incomes.filter(income => income.id !== id));
+        }
+    };
+
+    // CRUD for Planner Events
+    const addEvent = () => setEvents([...events, {
+        id: generateUUID(),
+        name: 'New Event',
+        date: new Date().toISOString().split('T')[0],
+        type: 'milestone',
+        amount: 0
+    }]);
+    const updateEvent = (id, field, value) => {
+        setEvents(events.map(event => event.id === id ? { ...event, [field]: value } : event));
+    };
+    const removeEvent = (id) => {
+        if (window.confirm('Delete this event?')) {
+            setEvents(events.filter(event => event.id !== id));
+        }
+    };
+
     // Calculations
-    const totalLimit = cards.reduce((sum, c) => sum + (parseFloat(c.limit) || 0), 0);
-    const totalCardDebt = cards.reduce((sum, c) => sum + (parseFloat(c.debt) || 0), 0);
-    const totalOtherDebt = others.reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
-    const totalDebt = totalCardDebt + totalOtherDebt;
-
-    const totalFundCash = funds.reduce((sum, f) => sum + (parseFloat(f.amount) || 0), 0);
-    const totalCardMoney = cards.reduce((sum, c) => sum + (parseFloat(c.money) || 0), 0);
-
-    // Gold Value Calculation (Keep separate from main totals as per user request)
-    const currentGoldRate = goldPrice * (exchangeRates[currency] || 1);
-    const goldValue = goldGrams * currentGoldRate;
-
-    const totalAssets = totalFundCash + totalCardMoney; // Gold excluded from main dashboard assets
+    const totalLimit = cards.reduce((sum, card) => sum + convertCurrencyAmount(card.limit, card.currency), 0);
+    const totalCardDebt = cards.reduce((sum, card) => sum + convertCurrencyAmount(card.debt, card.currency), 0);
+    const totalDebt = totalCardDebt;
+    const totalFundCash = funds.reduce((sum, fund) => sum + numericValue(fund.amount), 0);
+    const totalCardMoney = cards.reduce((sum, card) => sum + convertCurrencyAmount(card.money, card.currency), 0);
+    const totalInvestmentValue = investments.reduce((sum, investment) => sum + getInvestmentValue(investment), 0);
+    const monthlyBurn = others.reduce((sum, other) => (
+        other.isRecurring && isStillActive(other.endDate)
+            ? sum + convertCurrencyAmount(other.amount, other.currency)
+            : sum
+    ), 0);
+    const expectedMonthlyIncome = incomes.reduce((sum, income) => (
+        income.isRecurring && isStillActive(income.endDate)
+            ? sum + convertCurrencyAmount(income.amount, income.currency)
+            : sum
+    ), 0);
+    const totalAssets = totalFundCash + totalCardMoney + totalInvestmentValue;
     const overallNet = totalAssets - totalDebt;
-    const ccNet = cards.reduce((sum, c) => sum + ((parseFloat(c.money) || 0) - (parseFloat(c.debt) || 0)), 0);
-
+    const ccNet = totalCardMoney - totalCardDebt;
+    const runway = monthlyBurn > 0 ? totalFundCash / monthlyBurn : null;
 
     // Snapshot Management
     const saveSnapshot = () => {
@@ -210,12 +457,13 @@ export default function useFinanceData(session) {
             overallNet,
             totalAssets,
             totalDebt,
+            totalInvestmentValue,
             currency
         };
         setHistory([snapshot, ...historyList]);
     };
 
-    const deleteSnapshot = (id) => setHistory(historyList.filter(s => s.id !== id));
+    const deleteSnapshot = (id) => setHistory(historyList.filter(snapshot => snapshot.id !== id));
 
     // Advanced Stats
     const sortedHistory = [...historyList].sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -234,16 +482,19 @@ export default function useFinanceData(session) {
         momentum = (overallNet - firstSnap.overallNet) / days;
     }
 
-    const allTimeHigh = Math.max(overallNet, ...historyList.map(s => s.overallNet));
+    const allTimeHigh = Math.max(overallNet, ...historyList.map(snapshot => snapshot.overallNet));
 
     // Backup & Restore Logic
     const exportBackup = () => {
         const data = {
-            version: '3.0',
+            version: '4.0',
             timestamp: new Date().toISOString(),
             cards,
             funds,
             others,
+            investments,
+            incomes,
+            events,
             currency,
             goldGrams,
             history: historyList
@@ -261,18 +512,19 @@ export default function useFinanceData(session) {
         try {
             const data = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
 
-            // Basic validation
             if (!data.cards || !data.funds) {
                 throw new Error("Invalid backup file format");
             }
 
-            // Update all states
-            setCards(data.cards);
-            setFunds(data.funds);
-            setOthers(data.others || []);
+            setCards(normalizeCards(data.cards));
+            setFunds(normalizeFunds(data.funds));
+            setOthers(normalizeOthers(data.others));
+            setInvestments(normalizeInvestments(data.investments, data.goldGrams));
+            setIncomes(normalizeIncomes(data.incomes));
+            setEvents(normalizeEvents(data.events));
             setCurrency(data.currency || 'TRY');
-            setGoldGrams(data.goldGrams || 0);
-            setHistory(data.history || []);
+            setLegacyGoldGrams(data.goldGrams || 0);
+            setHistory(Array.isArray(data.history) ? data.history : []);
 
             console.log("Backup restored successfully");
             return true;
@@ -284,24 +536,35 @@ export default function useFinanceData(session) {
     };
 
     return {
-        cards, funds, others,
-        currency, toggleCurrency,
+        cards, funds, others, investments, incomes, events,
+        currency, toggleCurrency, setCurrency,
         history: historyList,
         goldGrams,
         setGoldGrams,
-        goldPricePerGram: goldPrice * (exchangeRates[currency] || 1),
+        goldPricePerGram,
         goldValue,
         goldChanges,
         exchangeRates,
+        getInvestmentValue,
+        convertCurrencyAmount,
         saveSnapshot, deleteSnapshot,
         addCard, updateCard, removeCard,
         addFund, updateFund, removeFund,
         addOther, updateOther, removeOther,
+        addInvestment, updateInvestment, removeInvestment,
+        addIncome, updateIncome, removeIncome,
+        addEvent, updateEvent, removeEvent,
         exportBackup, importBackup,
         totals: {
             totalLimit,
             totalDebt,
+            totalCardDebt,
+            totalFundCash,
             totalAssets,
+            totalInvestmentValue,
+            expectedMonthlyIncome,
+            monthlyBurn,
+            runway,
             overallNet,
             ccNet,
             velocity,

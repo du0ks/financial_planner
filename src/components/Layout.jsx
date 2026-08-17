@@ -1,101 +1,203 @@
-import { Wallet, Banknote, LogOut, User } from 'lucide-react';
+import { useState } from 'react';
+import { Wallet, User, LogOut, ChevronsUpDown, Coins, LineChart, Settings as SettingsIcon } from 'lucide-react';
 import { supabase } from '../utils/supabase';
+import { CURRENCY_SYMBOLS } from '../utils/format';
 import InstallHint from './InstallHint';
 
-export default function Layout({ children, activeTab, onTabChange, currency, onToggleCurrency, userEmail }) {
+// Neon Grid design tokens (design_handoff_neon_grid/README.md).
+const CYAN = '#7ee9ff';
+const MAGENTA = '#ff5fb4';
+const AMBER = '#ffc861';
+const TEXT_DIM = '#a6a4c4';
+const FRAME_BORDER = 'rgba(126,233,255,0.22)';
+
+// Tabs covered by the Neon Grid redesign. Two tabs are deliberately left out for now:
+//
+// - 'expenses' (Spending): closing this feature for 2-3 months at the client's request.
+//   Restore by uncommenting this entry, its case in App.jsx's renderContent(), and the
+//   ExpensesView import there.
+// - 'planner' (Planner): still WIP, not ready to ship. Same restore steps, pointing at
+//   the 'planner' case and PlannerView import in App.jsx instead.
+const NAV_TABS = [
+    { key: 'dashboard', desktopLabel: 'Money', mobileLabel: 'Money', mobileIcon: Wallet },
+    { key: 'investments', desktopLabel: 'Investments', mobileLabel: 'Gold', mobileIcon: Coins, accent: 'amber' },
+    // { key: 'expenses', desktopLabel: 'Spending', mobileLabel: 'Spend', mobileIcon: Receipt },
+    { key: 'history', desktopLabel: 'History', mobileLabel: 'History', mobileIcon: LineChart },
+    // { key: 'planner', desktopLabel: 'Planner', mobileLabel: 'Plan', mobileIcon: Flag },
+    { key: 'settings', desktopLabel: 'Settings', mobileLabel: 'You', mobileIcon: SettingsIcon },
+];
+
+export default function Layout({ children, activeTab, onTabChange, currency, userEmail }) {
     const handleLogout = () => supabase.auth.signOut();
+    const currencySymbol = CURRENCY_SYMBOLS[currency] || '';
 
     return (
-        <div className="font-sans text-gray-900 dark:text-gray-100 min-h-screen flex flex-col bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-black transition-colors duration-500">
-
-            {/* Mobile-First Header */}
-            <div className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-md sticky top-0 z-50 border-b border-gray-200 dark:border-gray-800 shadow-sm">
-                <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <div className="bg-gradient-to-tr from-green-500 to-emerald-400 p-2 rounded-xl shadow-lg shadow-green-500/20">
-                            <Wallet className="text-white w-6 h-6" />
+        <div
+            className="min-h-screen w-full flex flex-col font-sans text-white"
+            style={{ backgroundColor: '#07050e', border: `1px solid ${FRAME_BORDER}` }}
+        >
+            {/* Desktop header — replaced on mobile by the bottom brand bar + tab bar below */}
+            <header className="hidden md:block h-[76px] shrink-0" style={{ borderBottom: `1px solid ${FRAME_BORDER}` }}>
+                <div className="max-w-6xl mx-auto h-full flex items-center justify-between px-[28px]">
+                    <div className="flex items-center gap-3">
+                        <div
+                            className="w-10 h-10 flex items-center justify-center border shrink-0"
+                            style={{ borderColor: CYAN, backgroundColor: 'rgba(126,233,255,0.1)' }}
+                        >
+                            <Wallet size={21} style={{ color: CYAN }} />
                         </div>
-                        <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400">
+                        <span className="font-display font-bold text-[21px] tracking-[0.24em] uppercase text-white">
                             Prosperity
-                        </h1>
+                        </span>
                     </div>
 
                     <div className="flex items-center gap-3">
-                        <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800">
-                            <User size={14} className="text-gray-400" />
-                            <span className="text-xs font-medium text-gray-500">{userEmail}</span>
+                        <div className="h-[42px] flex items-center gap-2 px-3 border border-white/20">
+                            <User size={15} style={{ color: TEXT_DIM }} />
+                            <span className="font-mono text-[14px]" style={{ color: TEXT_DIM }}>{userEmail}</span>
                         </div>
 
-                        <button
-                            onClick={onToggleCurrency}
-                            className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition font-mono font-bold text-sm text-green-600 dark:text-green-400 border border-transparent active:scale-95"
+                        {/* Display-only per spec: currency is now set from Settings, not cycled here. */}
+                        <div
+                            className="h-[42px] flex items-center gap-1.5 px-3 border font-mono text-[14px] font-semibold"
+                            style={{ borderColor: CYAN, backgroundColor: 'rgba(126,233,255,0.12)', color: CYAN }}
                         >
-                            <Banknote className="w-4 h-4" />
-                            <span>{currency}</span>
-                        </button>
+                            <span>{currencySymbol} {currency}</span>
+                            <ChevronsUpDown size={13} />
+                        </div>
 
-                        <button
-                            onClick={handleLogout}
-                            className="p-2 rounded-full hover:bg-red-50 dark:hover:bg-red-500/10 text-gray-400 hover:text-red-500 transition-colors"
-                            title="Sign Out"
-                        >
-                            <LogOut size={18} />
-                        </button>
+                        <SignOutButton onClick={handleLogout} />
                     </div>
                 </div>
+            </header>
 
-                {/* Navigation Tabs */}
-                <div className="max-w-6xl mx-auto px-4 flex overflow-x-auto gap-6 text-sm font-medium no-scrollbar">
-                    <NavTab
-                        active={activeTab === 'dashboard'}
-                        onClick={() => onTabChange('dashboard')}
-                        label="Overview"
-                    />
-                    <NavTab
-                        active={activeTab === 'investments'}
-                        onClick={() => onTabChange('investments')}
-                        label="Investments"
-                    />
-                    <NavTab
-                        active={activeTab === 'expenses'}
-                        onClick={() => onTabChange('expenses')}
-                        label="Expenses"
-                    />
-                    <NavTab
-                        active={activeTab === 'history'}
-                        onClick={() => onTabChange('history')}
-                        label="History"
-                    />
-                    <NavTab
-                        active={activeTab === 'settings'}
-                        onClick={() => onTabChange('settings')}
-                        label="Settings"
-                    />
+            {/* Desktop nav row */}
+            <nav className="hidden md:block shrink-0" style={{ borderBottom: `1px solid ${FRAME_BORDER}` }}>
+                <div className="max-w-6xl mx-auto flex gap-[6px] px-[28px]">
+                    {NAV_TABS.map((tab) => (
+                        <NavTab
+                            key={tab.key}
+                            active={activeTab === tab.key}
+                            amber={tab.accent === 'amber'}
+                            onClick={() => onTabChange(tab.key)}
+                            label={tab.desktopLabel}
+                        />
+                    ))}
                 </div>
-            </div>
+            </nav>
 
-            {/* Main Content */}
-            <main className="flex-1 max-w-6xl w-full mx-auto p-4 md:p-6 lg:p-8 animate-fade-in">
+            {/* Content */}
+            <main className="flex-1 mx-auto w-full max-w-6xl px-4 pt-6 pb-[148px] md:px-[28px] md:pt-[32px] md:pb-[44px] animate-fade-in">
                 {children}
             </main>
 
+            {/* Mobile brand bar + bottom tab bar, replacing the desktop header/nav below md */}
+            <div className="md:hidden fixed inset-x-0 bottom-0 z-40">
+                <div
+                    className="h-16 flex items-center justify-between px-4"
+                    style={{ backgroundColor: '#07050e', borderTop: `1px solid ${FRAME_BORDER}` }}
+                >
+                    <div className="flex items-center gap-2">
+                        <div
+                            className="w-8 h-8 flex items-center justify-center border shrink-0"
+                            style={{ borderColor: CYAN, backgroundColor: 'rgba(126,233,255,0.1)' }}
+                        >
+                            <Wallet size={16} style={{ color: CYAN }} />
+                        </div>
+                        <span className="font-display font-bold text-[15px] tracking-[0.2em] uppercase text-white">
+                            Prosperity
+                        </span>
+                    </div>
+
+                    <div
+                        className="h-[46px] flex items-center gap-1.5 px-3 border font-mono text-[13px] font-semibold"
+                        style={{ borderColor: CYAN, backgroundColor: 'rgba(126,233,255,0.12)', color: CYAN }}
+                    >
+                        <span>{currencySymbol} {currency}</span>
+                    </div>
+                </div>
+
+                <div
+                    className="h-[68px] grid"
+                    style={{
+                        gridTemplateColumns: `repeat(${NAV_TABS.length}, minmax(0, 1fr))`,
+                        backgroundColor: '#06040e',
+                        borderTop: `1px solid ${FRAME_BORDER}`,
+                    }}
+                >
+                    {NAV_TABS.map((tab) => (
+                        <MobileTab
+                            key={tab.key}
+                            active={activeTab === tab.key}
+                            amber={tab.accent === 'amber'}
+                            onClick={() => onTabChange(tab.key)}
+                            label={tab.mobileLabel}
+                            mobileIcon={tab.mobileIcon}
+                        />
+                    ))}
+                </div>
+            </div>
+
             {/* PWA Install Guide */}
             <InstallHint />
-
         </div>
     );
 }
 
-function NavTab({ active, onClick, label }) {
+function SignOutButton({ onClick }) {
+    const [hover, setHover] = useState(false);
     return (
         <button
             onClick={onClick}
-            className={`py-3 border-b-2 transition-all duration-300 whitespace-nowrap font-bold text-sm outline-none px-1 ${active
-                ? 'border-green-500 text-green-600 dark:text-green-400'
-                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                }`}
+            onMouseEnter={() => setHover(true)}
+            onMouseLeave={() => setHover(false)}
+            className="w-[42px] h-[42px] flex items-center justify-center border transition-colors"
+            style={{ borderColor: hover ? MAGENTA : 'rgba(255,255,255,0.2)' }}
+            title="Sign out"
+        >
+            <LogOut size={18} style={{ color: hover ? MAGENTA : TEXT_DIM }} />
+        </button>
+    );
+}
+
+function NavTab({ active, amber, onClick, label }) {
+    const activeColor = amber ? AMBER : CYAN;
+    return (
+        <button
+            onClick={onClick}
+            aria-current={active ? 'page' : undefined}
+            className="font-mono font-semibold text-[14px] tracking-[0.14em] uppercase whitespace-nowrap outline-none transition-colors"
+            style={{
+                padding: '16px 18px',
+                borderBottom: `3px solid ${active ? activeColor : 'transparent'}`,
+                color: active ? activeColor : TEXT_DIM,
+            }}
+            onMouseEnter={(e) => { if (!active) e.currentTarget.style.color = '#ffffff'; }}
+            onMouseLeave={(e) => { if (!active) e.currentTarget.style.color = TEXT_DIM; }}
         >
             {label}
         </button>
-    )
+    );
+}
+
+function MobileTab({ active, amber, onClick, label, mobileIcon }) {
+    // eslint's no-unused-vars only ignores capitalized *variables* (varsIgnorePattern), not
+    // capitalized destructured *params* — routing the icon component through a const here
+    // (instead of destructuring it directly as `Icon`) keeps the JSX-as-tag usage recognized.
+    const Icon = mobileIcon;
+    const activeColor = amber ? AMBER : CYAN;
+    return (
+        <button
+            onClick={onClick}
+            aria-current={active ? 'page' : undefined}
+            className="flex flex-col items-center justify-center gap-[6px] outline-none"
+            style={{
+                borderTop: `3px solid ${active ? activeColor : 'transparent'}`,
+                color: active ? activeColor : TEXT_DIM,
+            }}
+        >
+            <Icon size={20} />
+            <span className="font-mono text-[11px] tracking-[0.08em] uppercase">{label}</span>
+        </button>
+    );
 }

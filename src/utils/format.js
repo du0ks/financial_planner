@@ -5,6 +5,15 @@ const CURRENCY_CONFIG = {
     EUR: { locale: 'de-DE', currency: 'EUR' }
 };
 
+// Neon Grid design tokens show the bare symbol next to the code in a few chrome
+// elements (header chip, Settings currency picker) instead of Intl's formatted string.
+export const CURRENCY_SYMBOLS = {
+    TRY: '₺',
+    UAH: '₴',
+    EUR: '€',
+    USD: '$'
+};
+
 export const formatMoney = (amount, currencyCode = 'TRY') => {
     const config = CURRENCY_CONFIG[currencyCode] || CURRENCY_CONFIG.TRY;
 
