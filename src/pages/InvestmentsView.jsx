@@ -1,234 +1,297 @@
-import React, { useState, useMemo } from 'react';
-import { createPortal } from 'react-dom';
-import { Coins, TrendingUp, Wallet, ArrowRight, Sparkles, Scale, History, Plus, Minus, Info, X, Zap, Target, Award, ShieldCheck, Timer, BarChart3 } from 'lucide-react';
-import { formatMoney } from '../utils/format';
+import { useState } from 'react';
+import { Coins, Scale, Radio, Plus, Minus, BarChart3, Info } from 'lucide-react';
+import { formatMoney, parseCloudNumber } from '../utils/format';
+
+// Neon Grid design tokens (design_handoff_neon_grid/README.md) — Screen 2, Investments (gold).
+// The spec narrows this screen to gold only ("Investments (gold)" throughout, and the body
+// only ever describes a gold hero + a buy/sell panel + gold performance stats). The old
+// multi-asset UI (euro/USD/custom "Holdings" grid, the type dropdown, "Add Investment") is
+// dropped from this screen accordingly. useFinanceData.js is untouched, so if any non-gold
+// investment entries exist their value still counts toward totals — they're just no longer
+// editable from this screen. Flagged in the handoff summary; easy to bring back if needed.
+//
+// Also: the spec's explainer copy ("Gold is not counted in the net worth on your Money page")
+// doesn't match this app's actual math — totalInvestmentValue (which includes gold) already
+// feeds into totalAssets/overallNet in useFinanceData.js. Rather than ship a line that's false
+// about the user's own numbers, or silently change what counts toward net worth, the note
+// below states the real behavior instead of the spec's literal copy. Also flagged in summary.
+const AMBER = '#ffc861';
+const CYAN = '#7ee9ff';
+const MAGENTA = '#ff5fb4';
+const TEXT_MUTED = '#bab8d8';
+const TEXT_DIM = '#a6a4c4';
+const TEXT_BODY = '#e2e0f7';
+const PANEL_BORDER = 'rgba(255,255,255,0.20)';
+const PANEL_BG = '#0b0817';
+const FIELD_BG = '#060410';
+
+function formatGrams(value) {
+    return `${(value || 0).toFixed(2).replace('.', ',')} grams`;
+}
 
 export default function InvestmentsView({ data }) {
-    const { goldGrams, setGoldGrams, goldValue, goldPricePerGram, currency, totals, goldChanges } = data;
-    const { totalAssets, portfolioWeight } = totals;
+    const { goldGrams, setGoldGrams, goldValue, goldPricePerGram, currency, goldChanges } = data;
     const [inputGrams, setInputGrams] = useState('');
-    const [showInfo, setShowInfo] = useState(false);
 
-    const handleAdd = () => {
-        const val = parseFloat(inputGrams) || 0;
-        setGoldGrams(prev => prev + val);
+    const handleGoldChange = (direction) => {
+        const grams = parseCloudNumber(inputGrams);
+        if (grams <= 0) return;
+        setGoldGrams((current) => Math.max(0, current + grams * direction));
         setInputGrams('');
     };
 
-    const handleRemove = () => {
-        const val = parseFloat(inputGrams) || 0;
-        setGoldGrams(prev => Math.max(0, prev - val));
-        setInputGrams('');
-    };
+    const pendingValue = parseCloudNumber(inputGrams) * goldPricePerGram;
 
     return (
-        <div className="max-w-4xl mx-auto p-4 md:p-6 space-y-8 animate-fade-in">
-            {/* Header / Hero Section */}
-            <div className="relative overflow-hidden bg-gradient-to-br from-amber-900 via-yellow-800 to-amber-950 rounded-[40px] p-8 text-white shadow-2xl shadow-amber-900/30">
-                <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                    <div>
-                        <div className="flex items-center gap-2 mb-2">
-                            <div className="p-2 bg-white/10 backdrop-blur-md rounded-xl">
-                                <Coins size={20} className="text-yellow-400" />
-                            </div>
-                            <span className="text-sm font-bold uppercase tracking-widest text-yellow-200/80">Gold Reserves</span>
-                        </div>
-                        <h2 className="text-4xl md:text-5xl font-black tracking-tight mb-1">
-                            {formatMoney(goldValue, currency)}
-                        </h2>
-                        <div className="flex items-center gap-2 text-yellow-200/90 font-medium">
-                            <Scale size={16} />
-                            <span>{goldGrams.toFixed(2)} grams total</span>
-                        </div>
-                    </div>
+        <div className="flex flex-col gap-7 pb-6 md:gap-8">
+            <Hero goldValue={goldValue} goldGrams={goldGrams} goldPricePerGram={goldPricePerGram} currency={currency} />
 
-                    <div className="flex flex-col items-end gap-3">
-                        <button
-                            onClick={() => setShowInfo(true)}
-                            className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-md text-white transition-colors mb-2"
-                        >
-                            <Info size={20} />
-                        </button>
-                        <div className="bg-black/20 backdrop-blur-md border border-white/10 rounded-3xl p-6 text-right">
-                            <p className="text-xs font-bold uppercase tracking-widest text-yellow-200/70 mb-1">Live Market Price</p>
-                            <p className="text-2xl font-black font-mono">
-                                {formatMoney(goldPricePerGram, currency)}
-                                <span className="text-sm font-medium ml-1">/ gram</span>
-                            </p>
-                            <div className="flex items-center justify-end gap-1 text-[10px] mt-1 text-green-400 font-bold uppercase">
-                                <TrendingUp size={10} />
-                                <span>Real-time updated</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="absolute -top-12 -right-12 w-64 h-64 bg-yellow-500/10 rounded-full blur-3xl"></div>
-                <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-amber-500/10 rounded-full blur-2xl"></div>
-                <Sparkles className="absolute top-8 right-12 text-yellow-200/10 animate-pulse" size={120} />
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[380px_1fr]">
+                <AddSellPanel
+                    inputGrams={inputGrams}
+                    setInputGrams={setInputGrams}
+                    pendingValue={pendingValue}
+                    currency={currency}
+                    onBuy={() => handleGoldChange(1)}
+                    onSell={() => handleGoldChange(-1)}
+                />
+                <PerformancePanel goldChanges={goldChanges} goldValue={goldValue} currency={currency} />
             </div>
 
-            {/* Explainer Modal */}
-            {showInfo && createPortal(
-                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-[32px] p-8 shadow-2xl relative border border-gray-100 dark:border-gray-800">
-                        <button
-                            onClick={() => setShowInfo(false)}
-                            className="absolute top-6 right-6 p-2 text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+            <ExplainerNote />
+        </div>
+    );
+}
+
+function Hero({ goldValue, goldGrams, goldPricePerGram, currency }) {
+    return (
+        <section
+            className="relative overflow-hidden border p-6 md:px-[34px] md:pb-[40px] md:pt-[38px]"
+            style={{
+                borderColor: 'rgba(255,200,97,0.30)',
+                backgroundImage: 'linear-gradient(180deg, #150f06 0%, #08060e 100%)',
+            }}
+        >
+            <GoldGridTexture />
+
+            <div className="relative z-10 flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
+                <div className="min-w-0">
+                    <p
+                        className="mb-4 font-mono text-[13px] font-medium uppercase tracking-[0.18em] md:text-[15px]"
+                        style={{ color: TEXT_MUTED }}
+                    >
+                        What your gold is worth today
+                    </p>
+                    <div className="flex flex-wrap items-baseline gap-6">
+                        <span
+                            className="font-display text-[42px] font-extrabold leading-[0.9] tracking-[-0.03em] text-white md:text-[84px]"
+                            style={{ textShadow: '0 0 22px rgba(255,200,97,0.35)' }}
                         >
-                            <X size={20} />
-                        </button>
-
-                        <div className="flex flex-col gap-6">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-yellow-500/10 rounded-xl">
-                                    <ShieldCheck className="text-yellow-600" size={24} />
-                                </div>
-                                <h3 className="text-xl font-extrabold text-gray-900 dark:text-white uppercase tracking-tighter">Your Investment Engine</h3>
-                            </div>
-
-                            <div className="space-y-6">
-                                <div className="flex gap-4">
-                                    <div className="shrink-0 w-8 h-8 bg-amber-100 dark:bg-amber-900/30 rounded-lg flex items-center justify-center">
-                                        <TrendingUp size={16} className="text-amber-600" />
-                                    </div>
-                                    <div>
-                                        <p className="font-bold text-sm dark:text-gray-100 uppercase tracking-tighter">Real-Time Valuation</p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 leading-normal mt-1">
-                                            We track global <span className="text-amber-600 font-bold">XAU/USD</span> rates live. Your grams are instantly converted using current FX rates into {currency}.
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="flex gap-4">
-                                    <div className="shrink-0 w-8 h-8 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
-                                        <BarChart3 size={16} className="text-green-600" />
-                                    </div>
-                                    <div>
-                                        <p className="font-bold text-sm dark:text-gray-100 uppercase tracking-tighter">Performance Cards</p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 leading-normal mt-1">
-                                            These show how gold has moved in the last 24h, 1W, 1M, and 1Y. It calculates exactly how much your <span className="font-bold">actual holdings</span> gained or lost.
-                                        </p>
-                                    </div>
-                                </div>
-
-
-                                <div className="pt-6 border-t border-gray-100 dark:border-gray-800">
-                                    <div className="bg-amber-50 dark:bg-amber-900/10 p-4 rounded-2xl">
-                                        <p className="text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase tracking-[0.1em] mb-1 flex items-center gap-2">
-                                            <Zap size={10} /> Strategic Note
-                                        </p>
-                                        <p className="text-[11px] text-amber-900/70 dark:text-amber-200/60 leading-relaxed italic">
-                                            "Investment value is hidden from your main dashboard to treat it as a true safe-haven reserve that grows independently of your daily spending."
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <button
-                                onClick={() => setShowInfo(false)}
-                                className="w-full bg-gradient-to-br from-amber-900 to-amber-950 text-white font-black py-5 rounded-2xl transition-all active:scale-95 shadow-lg shadow-amber-900/20 uppercase tracking-[0.2em] text-xs"
-                            >
-                                Get Started
-                            </button>
-                        </div>
+                            {formatMoney(goldValue, currency)}
+                        </span>
+                        <span
+                            className="inline-flex items-center gap-2 border px-[14px] py-[9px] font-mono text-[15px] font-semibold md:text-[17px]"
+                            style={{ borderColor: 'rgba(255,200,97,0.5)', backgroundColor: 'rgba(255,200,97,0.1)', color: AMBER }}
+                        >
+                            <Scale size={16} />
+                            {formatGrams(goldGrams)}
+                        </span>
                     </div>
-                </div>,
-                document.body
-            )}
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Manual Transaction Card */}
-                <div className="lg:col-span-1 bg-white dark:bg-gray-900 rounded-[32px] p-8 shadow-xl border border-gray-100 dark:border-gray-800">
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6">Manage Physical Gold</h3>
-
-                    <div className="space-y-6">
-                        <div>
-                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">Amount (Grams)</label>
-                            <input
-                                type="number"
-                                step="0.01"
-                                value={inputGrams}
-                                onChange={(e) => setInputGrams(e.target.value)}
-                                className="w-full bg-gray-50 dark:bg-gray-800 border-none rounded-2xl py-5 px-6 text-xl font-mono font-bold text-gray-900 dark:text-white focus:ring-2 focus:ring-yellow-600 transition-all outline-none"
-                                placeholder="0.00"
-                            />
-                        </div>
-
-                        <div className="flex flex-col gap-3">
-                            <button
-                                onClick={handleAdd}
-                                className="w-full bg-gradient-to-br from-amber-900 via-yellow-800 to-amber-950 hover:from-amber-800 hover:to-amber-900 text-white font-black py-5 rounded-2xl shadow-xl shadow-amber-900/20 transition-all active:scale-95 flex items-center justify-center gap-3 group"
-                            >
-                                <div className="p-1.5 bg-white/10 rounded-lg group-hover:scale-110 transition-transform">
-                                    <Plus size={20} className="text-yellow-400" />
-                                </div>
-                                <span className="uppercase tracking-[0.2em] text-sm">Add Gold</span>
-                            </button>
-
-                            <button
-                                onClick={handleRemove}
-                                className="w-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100 font-bold py-5 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-3 border border-gray-200 dark:border-gray-700"
-                            >
-                                <Minus size={18} className="text-gray-500" />
-                                <span className="uppercase tracking-widest text-xs">Sell / Use</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <p className="text-[10px] text-gray-400 mt-8 leading-relaxed italic text-center uppercase tracking-tighter">
-                        Data is synced securely to your private cloud portfolio.
+                    <p className="mt-5 max-w-[600px] text-[17px] md:text-[19px]" style={{ color: TEXT_BODY, textWrap: 'pretty' }}>
+                        Kept separate from your spending money on purpose — this is the part you don't touch.
                     </p>
                 </div>
 
-                {/* Investment Insights & Real Data */}
-                <div className="lg:col-span-2 space-y-6">
-
-                    {/* PERFORMANCE METRICS */}
-                    <div className="bg-white dark:bg-gray-900 rounded-[32px] p-8 shadow-xl border border-gray-100 dark:border-gray-800">
-                        <div className="flex items-center gap-2 mb-8">
-                            <BarChart3 size={20} className="text-yellow-600" />
-                            <h3 className="font-bold text-gray-900 dark:text-white">Market Performance</h3>
-                        </div>
-
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                            <PerfCard label="Last 24h" value={goldChanges?.d1} goldValue={goldValue} currency={currency} />
-                            <PerfCard label="Last Week" value={goldChanges?.w1} goldValue={goldValue} currency={currency} />
-                            <PerfCard label="Last Month" value={goldChanges?.m1} goldValue={goldValue} currency={currency} />
-                            <PerfCard label="Last Year" value={goldChanges?.y1} goldValue={goldValue} currency={currency} />
-                        </div>
-
-                        <div className="mt-8 pt-8 border-t border-gray-50 dark:border-gray-800 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <Timer size={14} className="text-gray-400" />
-                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Valuation Method</span>
-                            </div>
-                            <span className="text-[10px] font-black text-yellow-600 uppercase bg-yellow-500/10 px-2 py-1 rounded-lg">
-                                Real-time XAU/USD
-                            </span>
-                        </div>
-                    </div>
+                <div className="shrink-0 border px-[22px] py-5" style={{ borderColor: PANEL_BORDER, backgroundColor: 'rgba(0,0,0,0.35)' }}>
+                    <p className="font-mono text-[14px]" style={{ color: TEXT_MUTED }}>Price per gram now</p>
+                    <p className="mt-2 font-mono text-[26px] font-semibold md:text-[32px]" style={{ color: AMBER }}>
+                        {formatMoney(goldPricePerGram, currency)}
+                    </p>
+                    <p className="mt-2 flex items-center gap-2 font-mono text-[12px] uppercase tracking-[0.12em]" style={{ color: CYAN }}>
+                        <Radio size={13} />
+                        live · XAU/USD
+                    </p>
                 </div>
+            </div>
+
+            <div
+                className="absolute inset-x-0 bottom-0 h-px"
+                style={{ backgroundColor: MAGENTA, boxShadow: '0 0 16px 1px rgba(255,95,180,0.45)' }}
+            />
+        </section>
+    );
+}
+
+function GoldGridTexture() {
+    const mask = 'linear-gradient(180deg, transparent 10%, #000 94%)';
+    return (
+        <>
+            <div
+                className="pointer-events-none absolute inset-0 hidden opacity-[0.42] md:block"
+                style={{
+                    backgroundImage:
+                        'repeating-linear-gradient(90deg, rgba(255,200,97,0.18) 0 1px, transparent 1px 68px),' +
+                        'repeating-linear-gradient(0deg, rgba(255,95,180,0.14) 0 1px, transparent 1px 48px)',
+                    maskImage: mask,
+                    WebkitMaskImage: mask,
+                }}
+            />
+            <div
+                className="pointer-events-none absolute inset-0 opacity-[0.42] md:hidden"
+                style={{
+                    backgroundImage:
+                        'repeating-linear-gradient(90deg, rgba(255,200,97,0.18) 0 1px, transparent 1px 48px),' +
+                        'repeating-linear-gradient(0deg, rgba(255,95,180,0.14) 0 1px, transparent 1px 40px)',
+                    maskImage: mask,
+                    WebkitMaskImage: mask,
+                }}
+            />
+        </>
+    );
+}
+
+function AddSellPanel({ inputGrams, setInputGrams, pendingValue, currency, onBuy, onSell }) {
+    return (
+        <div className="flex flex-col gap-5 border p-5 md:p-6" style={{ borderColor: PANEL_BORDER, backgroundColor: PANEL_BG }}>
+            <div className="flex items-center gap-3">
+                <div
+                    className="flex h-[34px] w-[34px] shrink-0 items-center justify-center border"
+                    style={{ borderColor: AMBER, backgroundColor: `${AMBER}1a` }}
+                >
+                    <Coins size={17} style={{ color: AMBER }} />
+                </div>
+                <h3 className="font-display text-[19px] font-semibold text-white md:text-[22px]">Add or sell gold</h3>
+            </div>
+
+            <label className="flex flex-col gap-2">
+                <span className="font-mono text-[12px] uppercase tracking-[0.12em]" style={{ color: TEXT_MUTED }}>Amount</span>
+                <div className="flex h-[52px] items-stretch border" style={{ borderColor: 'rgba(255,255,255,0.22)', backgroundColor: FIELD_BG }}>
+                    <input
+                        type="text"
+                        inputMode="decimal"
+                        value={inputGrams}
+                        onChange={(e) => setInputGrams(e.target.value)}
+                        placeholder="0,00"
+                        className="w-full min-w-0 flex-1 bg-transparent px-4 font-mono text-[19px] text-white outline-none"
+                    />
+                    <span
+                        className="flex items-center border-l px-4 font-mono text-[15px]"
+                        style={{ borderColor: 'rgba(255,255,255,0.22)', color: TEXT_MUTED }}
+                    >
+                        g
+                    </span>
+                </div>
+            </label>
+
+            <p className="text-[14px]" style={{ color: TEXT_DIM }}>
+                That's about {formatMoney(pendingValue, currency)} at today's price.
+            </p>
+
+            <div className="grid grid-cols-2 gap-3 md:flex md:flex-col">
+                <button
+                    onClick={onBuy}
+                    className="flex h-[52px] items-center justify-center gap-2 font-mono text-[14px] font-semibold uppercase tracking-[0.14em] transition-colors"
+                    style={{ backgroundColor: AMBER, color: '#100b02' }}
+                >
+                    <Plus size={16} />
+                    <span className="md:hidden">Bought</span>
+                    <span className="hidden md:inline">I bought gold</span>
+                </button>
+                <SellButton onClick={onSell} />
+            </div>
+
+            <p className="text-[13px]" style={{ color: TEXT_DIM }}>Saved to your private cloud right away.</p>
+        </div>
+    );
+}
+
+function SellButton({ onClick }) {
+    const [hover, setHover] = useState(false);
+    return (
+        <button
+            onClick={onClick}
+            onMouseEnter={() => setHover(true)}
+            onMouseLeave={() => setHover(false)}
+            className="flex h-[52px] items-center justify-center gap-2 border font-mono text-[14px] font-semibold uppercase tracking-[0.14em] transition-colors"
+            style={{ borderColor: hover ? MAGENTA : 'rgba(255,255,255,0.22)', color: hover ? MAGENTA : '#d8d6f0' }}
+        >
+            <Minus size={16} />
+            <span className="md:hidden">Sold</span>
+            <span className="hidden md:inline">I sold or used gold</span>
+        </button>
+    );
+}
+
+function PerformancePanel({ goldChanges, goldValue, currency }) {
+    const changes = goldChanges || {};
+    return (
+        <div className="flex flex-col gap-5 border p-5 md:p-6" style={{ borderColor: PANEL_BORDER, backgroundColor: PANEL_BG }}>
+            <div>
+                <div className="flex items-center gap-3">
+                    <div
+                        className="flex h-[34px] w-[34px] shrink-0 items-center justify-center border"
+                        style={{ borderColor: AMBER, backgroundColor: `${AMBER}1a` }}
+                    >
+                        <BarChart3 size={17} style={{ color: AMBER }} />
+                    </div>
+                    <h3 className="font-display text-[19px] font-semibold text-white md:text-[22px]">How gold moved</h3>
+                </div>
+                <p className="mt-2 text-[15px]" style={{ color: TEXT_MUTED }}>
+                    and what it did to your {formatMoney(goldValue, currency)}
+                </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-[14px] md:grid-cols-4">
+                <PerfCell label="Last 24h" pct={changes.d1} goldValue={goldValue} currency={currency} />
+                <PerfCell label="Last week" pct={changes.w1} goldValue={goldValue} currency={currency} />
+                <PerfCell label="Last month" pct={changes.m1} goldValue={goldValue} currency={currency} />
+                <PerfCell label="Last year" pct={changes.y1} goldValue={goldValue} currency={currency} />
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4" style={{ borderColor: 'rgba(255,255,255,0.12)' }}>
+                <p className="text-[13px]" style={{ color: TEXT_DIM }}>
+                    Priced from the live world gold rate, converted to lira.
+                </p>
+                <span
+                    className="border px-3 py-1 font-mono text-[12px] uppercase tracking-[0.12em]"
+                    style={{ borderColor: AMBER, color: AMBER }}
+                >
+                    XAU/USD
+                </span>
             </div>
         </div>
     );
 }
 
-function PerfCard({ label, value, goldValue, currency }) {
-    const isPositive = value >= 0;
-    const monetaryChange = (goldValue || 0) * (value / 100);
-
+function PerfCell({ label, pct = 0, goldValue, currency }) {
+    const value = pct || 0;
+    const positive = value >= 0;
+    const color = positive ? CYAN : MAGENTA;
+    const money = (goldValue || 0) * (value / 100);
     return (
-        <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-2xl border border-transparent hover:border-yellow-500/20 transition-all group">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 group-hover:text-gray-500 transition-colors">{label}</p>
-            <div className="flex flex-col">
-                <p className={`text-lg font-black ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
-                    {isPositive ? '+' : ''}{value?.toFixed(2)}%
-                </p>
-                <p className={`text-[10px] font-bold ${isPositive ? 'text-green-600/70' : 'text-red-600/70'} mt-0.5`}>
-                    {isPositive ? '+' : ''}{formatMoney(monetaryChange, currency)}
-                </p>
-            </div>
+        <div className="border p-4" style={{ borderColor: 'rgba(255,255,255,0.16)', backgroundColor: FIELD_BG }}>
+            <p className="font-mono text-[12px] uppercase tracking-[0.1em]" style={{ color: TEXT_MUTED }}>{label}</p>
+            <p className="mt-2 font-mono text-[22px] font-semibold md:text-[26px]" style={{ color }}>
+                {positive ? '+' : ''}{value.toFixed(2)}%
+            </p>
+            <p className="mt-1 font-mono text-[14px] md:text-[15px]" style={{ color }}>
+                {positive ? '+' : ''}{formatMoney(money, currency)}
+            </p>
+        </div>
+    );
+}
+
+function ExplainerNote() {
+    return (
+        <div
+            className="flex items-start gap-3 border p-5 text-[15px] md:p-6"
+            style={{ borderColor: 'rgba(126,233,255,0.3)', color: TEXT_BODY, backgroundColor: PANEL_BG }}
+        >
+            <Info size={18} className="mt-0.5 shrink-0" style={{ color: CYAN }} />
+            <span>
+                Your gold is counted in the net worth on your Money page — this panel just keeps it visually
+                separate, so a swing in the gold price doesn't get lost in the bigger number.
+            </span>
         </div>
     );
 }
