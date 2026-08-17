@@ -11,10 +11,13 @@ const PANEL_BG = '#0b0817';
 const FIELD_BG = '#060410';
 const TRACK_BG = '#16112a';
 
-// Note: the pre-existing "Details" disclosure (interest rate, statement day, due date,
-// per-card native currency) is dropped here — it's itself unshipped local WIP (confirmed via
-// git diff), and the redesigned panel spec is exhaustive about its contents ("no footer").
-// The underlying card fields are untouched in useFinanceData.js if this needs restoring.
+// Note: the pre-existing "Details" disclosure (interest rate, statement day, due date) is
+// still dropped — that part really is unshipped local WIP (confirmed via git diff), and the
+// redesigned panel spec is exhaustive about its contents ("no footer"). BUT per-card currency
+// was wrongly bundled in with that drop the first time around: card.currency is a real, live
+// field (DEFAULT_CARD_FIELDS in useFinanceData.js) that already feeds convertCurrencyAmount()
+// for every total on this screen — the data layer never needed a fix, just this selector back.
+const CURRENCIES = ['TRY', 'UAH', 'EUR', 'USD'];
 
 export default function CardTable({ cards, updateCard, removeCard, currency }) {
     return (
@@ -39,12 +42,14 @@ function CardPanel({ card, updateCard, removeCard, currency }) {
 
     return (
         <div className="border" style={{ borderColor: PANEL_BORDER, backgroundColor: PANEL_BG }}>
-            {/* Header row */}
+            {/* Header row. Wraps to two lines on mobile — name gets its own full-width row,
+                currency + net position + remove drop to a second row — there just isn't
+                enough width for icon+name+currency+net+trash on one 390px line. */}
             <div
-                className="flex items-center justify-between gap-3 border-b px-4 py-[13px]"
+                className="flex flex-wrap items-center gap-x-3 gap-y-3 border-b px-4 py-[13px]"
                 style={{ borderColor: 'rgba(255,255,255,0.12)' }}
             >
-                <div className="flex min-w-0 flex-1 items-center gap-3">
+                <div className="flex min-w-0 basis-full items-center gap-3 md:basis-0 md:flex-1">
                     <div
                         className="flex h-8 w-8 shrink-0 items-center justify-center border"
                         style={{ borderColor: accent, backgroundColor: `${accent}1a` }}
@@ -60,7 +65,11 @@ function CardPanel({ card, updateCard, removeCard, currency }) {
                         style={{ borderColor: 'rgba(255,255,255,0.22)' }}
                     />
                 </div>
-                <div className="flex shrink-0 items-center gap-3">
+                <CurrencySelect
+                    value={cardCurrency}
+                    onChange={(code) => updateCard(card.id, 'currency', code)}
+                />
+                <div className="ml-auto flex shrink-0 items-center gap-3">
                     <span className="font-mono text-[17px] font-bold md:text-[19px]" style={{ color: accent }}>
                         {cardNet > 0 ? '+' : ''}{formatMoney(cardNet, cardCurrency)}
                     </span>
@@ -167,6 +176,26 @@ function CardField({ label, value, displayValue, symbol, onCommit, textColor, bo
                 )}
             </div>
         </label>
+    );
+}
+
+function CurrencySelect({ value, onChange }) {
+    return (
+        <select
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            aria-label="Card currency"
+            className="h-7 shrink-0 border bg-transparent px-[6px] font-mono text-[12px] font-semibold uppercase tracking-[0.08em] outline-none transition-colors"
+            style={{ borderColor: 'rgba(255,255,255,0.22)', color: '#d8d6f0', backgroundColor: FIELD_BG }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = '#7ee9ff'; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.22)'; }}
+        >
+            {CURRENCIES.map((code) => (
+                <option key={code} value={code} style={{ backgroundColor: '#0b0817', color: '#ffffff' }}>
+                    {code}
+                </option>
+            ))}
+        </select>
     );
 }
 
