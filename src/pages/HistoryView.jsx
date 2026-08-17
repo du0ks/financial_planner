@@ -1,364 +1,346 @@
-import React, { useState } from 'react';
-import { createPortal } from 'react-dom';
-import { History as HistoryIcon, TrendingUp, TrendingDown, Trash2, Camera, Calendar, ArrowRight, Zap, Target, Award, Info, X } from 'lucide-react';
+import { useState } from 'react';
+import { Calendar, Trash2, Camera, Zap, TrendingUp, Award } from 'lucide-react';
 import { formatMoney } from '../utils/format';
+
+// Neon Grid design tokens (design_handoff_neon_grid/README.md) — Screen 3, History.
+// The old Info modal is gone per the spec ("Removed on purpose"); the chart math
+// (getPoints, padding 20, 1000x200 box) and the milestone helpers are unchanged from the
+// pre-redesign file — only the strokes/colors/layout around them changed.
+const CYAN = '#7ee9ff';
+const MAGENTA = '#ff5fb4';
+const AMBER = '#ffc861';
+const TEXT_MUTED = '#bab8d8';
+const TEXT_DIM = '#a6a4c4';
+const PANEL_BORDER = 'rgba(255,255,255,0.20)';
+const PANEL_BG = '#0b0817';
+const FIELD_BG = '#060410';
+const TRACK_BG = '#16112a';
+
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const shortDate = (d) => `${d.getDate()} ${MONTH_ABBR[d.getMonth()]}`;
+
+function getNextMilestone(val) {
+    if (val <= 0) return 5000;
+    const magnitudes = [1000, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000];
+    return magnitudes.find((m) => m > val) || val * 1.2;
+}
 
 export default function HistoryView({ data }) {
     const { history = [], saveSnapshot, deleteSnapshot, totals, currency } = data;
     const { velocity, momentum, allTimeHigh, overallNet, totalAssets, totalDebt } = totals;
-    const [showInfo, setShowInfo] = useState(false);
 
-    // Chart logic: Transform history into points
-    // We include current state as the last point
-    const currentState = {
-        date: new Date().toISOString(),
-        overallNet,
-        totalAssets,
-        totalDebt,
-        currency
-    };
-
+    const currentState = { date: new Date().toISOString(), overallNet, totalAssets, totalDebt, currency };
     const chartData = [...[...history].reverse(), currentState];
+    const hasChart = chartData.length >= 2;
 
-    // Bounds for charting
-    const allNetValues = chartData.map(s => s.overallNet);
-    const allAssetValues = chartData.map(s => s.totalAssets);
-
+    const allAssetValues = chartData.map((s) => s.totalAssets);
+    const allNetValues = chartData.map((s) => s.overallNet);
     const maxVal = Math.max(...allAssetValues, 1000);
     const minVal = Math.min(...allNetValues, 0);
     const range = maxVal - minVal || 1;
 
-    // Multi-layer SVG Chart logic
     const getPoints = (key) => {
-        if (chartData.length < 2) return "";
+        if (chartData.length < 2) return '';
         const width = 1000;
         const height = 200;
         const padding = 20;
         const plotWidth = width - padding * 2;
         const plotHeight = height - padding * 2;
-
         return chartData.map((s, i) => {
             const x = padding + (i / (chartData.length - 1)) * plotWidth;
             const y = height - (padding + ((s[key] - minVal) / range) * plotHeight);
             return `${x},${y}`;
-        }).join(" ");
+        }).join(' ');
     };
 
-    // Milestone calculation
-    const getNextMilestone = (val) => {
-        if (val <= 0) return 5000;
-        const magnitudes = [1000, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000];
-        return magnitudes.find(m => m > val) || val * 1.2;
-    };
+    const netPoints = getPoints('overallNet');
+    const netPointList = netPoints ? netPoints.split(' ').map((p) => p.split(',').map(Number)) : [];
+
     const nextMilestone = getNextMilestone(overallNet);
     const milestoneProgress = Math.max(0, Math.min(100, (overallNet / nextMilestone) * 100));
 
+    const axisLabels = hasChart
+        ? [
+            shortDate(new Date(chartData[0].date)),
+            shortDate(new Date(chartData[Math.floor((chartData.length - 1) / 2)].date)),
+            `${shortDate(new Date(chartData[chartData.length - 1].date))} · today`,
+        ]
+        : [];
+
     return (
-        <div className="animate-fade-in space-y-8 pb-20">
-            {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col gap-7 pb-6 md:gap-8">
+            <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                        <HistoryIcon className="text-green-500" />
-                        Financial Vault
-                    </h2>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-                        Advanced analytics and snapshot-driven growth metrics.
+                    <h1 className="font-display text-[26px] font-bold text-white md:text-[34px]">How you're doing over time</h1>
+                    <p className="mt-2 text-[15px] md:text-[17px]" style={{ color: TEXT_MUTED }}>
+                        Every snapshot you save becomes a point on this line.
                     </p>
                 </div>
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => setShowInfo(true)}
-                        className="p-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors"
-                    >
-                        <Info size={20} />
-                    </button>
-                    <button
-                        onClick={saveSnapshot}
-                        className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg shadow-green-600/20 transition-all active:scale-95 text-sm"
-                    >
-                        <Camera size={18} />
-                        Snapshot Progress
-                    </button>
+                <SaveButton onClick={saveSnapshot} />
+            </header>
+
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_340px]">
+                <ChartPanel
+                    hasChart={hasChart}
+                    netPointList={netPointList}
+                    getPoints={getPoints}
+                    axisLabels={axisLabels}
+                    nextMilestone={nextMilestone}
+                    milestoneProgress={milestoneProgress}
+                    currency={currency}
+                />
+
+                <div className="flex flex-col gap-4 md:gap-5">
+                    <StatPanel icon={Zap} label="Growing per day" value={formatMoney(velocity, currency)} note="since your last snapshot" />
+                    <StatPanel icon={TrendingUp} label="Average per day" value={formatMoney(momentum, currency)} note="across everything you saved" />
+                    <StatPanel
+                        icon={Award}
+                        accent={AMBER}
+                        label="Best ever"
+                        value={formatMoney(allTimeHigh, currency)}
+                        note={allTimeHigh <= overallNet ? "that's right now" : 'the most you have ever had'}
+                    />
                 </div>
             </div>
 
-            {/* Explainer Modal */}
-            {showInfo && createPortal(
-                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-[32px] p-8 shadow-2xl relative border border-gray-100 dark:border-gray-800">
-                        <button
-                            onClick={() => setShowInfo(false)}
-                            className="absolute top-6 right-6 p-2 text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-                        >
-                            <X size={20} />
-                        </button>
+            <SnapshotTable history={history} deleteSnapshot={deleteSnapshot} currency={currency} />
+        </div>
+    );
+}
 
-                        <div className="flex flex-col gap-6">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-2 bg-green-500/10 rounded-xl">
-                                    <Info className="text-green-500" size={24} />
-                                </div>
-                                <h3 className="text-xl font-extrabold text-gray-900 dark:text-white">Finance Guide</h3>
-                            </div>
+function SaveButton({ onClick }) {
+    return (
+        <button
+            onClick={onClick}
+            className="flex h-14 w-full items-center justify-center gap-2 font-mono text-[15px] font-semibold uppercase tracking-[0.1em] transition-colors md:h-[52px] md:w-fit md:px-6"
+            style={{ backgroundColor: CYAN, color: '#050409' }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = MAGENTA; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = CYAN; }}
+        >
+            <Camera size={17} />
+            Save today's numbers
+        </button>
+    );
+}
 
-                            <div className="space-y-5">
-                                <div className="flex gap-3">
-                                    <Zap size={18} className="text-blue-500 shrink-0 mt-0.5" />
-                                    <div>
-                                        <p className="font-bold text-sm dark:text-gray-100 italic">Velocity</p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 leading-normal">
-                                            How fast your money grows. It's the growth per day since your last snapshot.
-                                        </p>
-                                    </div>
-                                </div>
+function ChartPanel({ hasChart, netPointList, getPoints, axisLabels, nextMilestone, milestoneProgress, currency }) {
+    return (
+        <div className="flex flex-col gap-5 border p-5 md:p-6" style={{ borderColor: PANEL_BORDER, backgroundColor: PANEL_BG }}>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <h3 className="font-display text-[19px] font-semibold text-white md:text-[22px]">Net worth, last three months</h3>
+                <div className="flex items-center gap-5 font-mono text-[13px]" style={{ color: TEXT_MUTED }}>
+                    <span className="flex items-center gap-2">
+                        <span className="h-[3px] w-[18px]" style={{ backgroundColor: CYAN }} />
+                        Net worth
+                    </span>
+                    <span className="flex items-center gap-2">
+                        <span className="h-0 w-[18px] border-t-2 border-dashed" style={{ borderColor: MAGENTA }} />
+                        Everything you own
+                    </span>
+                </div>
+            </div>
 
-                                <div className="flex gap-3">
-                                    <TrendingUp size={18} className="text-green-500 shrink-0 mt-0.5" />
-                                    <div>
-                                        <p className="font-bold text-sm dark:text-gray-100 italic">Momentum</p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 leading-normal">
-                                            Your average daily growth from the very start.
-                                        </p>
-                                    </div>
-                                </div>
+            {hasChart ? (
+                <>
+                    <div className="relative h-[170px] border md:h-[240px]" style={{ borderColor: 'rgba(255,255,255,0.14)', backgroundColor: FIELD_BG }}>
+                        <ChartGridTexture />
+                        <svg viewBox="0 0 1000 220" preserveAspectRatio="none" className="relative h-full w-full overflow-visible">
+                            <defs>
+                                <linearGradient id="netWorthFill" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor="#7ee9ff" stopOpacity="0.14" />
+                                    <stop offset="100%" stopColor="#7ee9ff" stopOpacity="0" />
+                                </linearGradient>
+                            </defs>
 
-                                <div className="flex gap-3">
-                                    <Award size={18} className="text-yellow-500 shrink-0 mt-0.5" />
-                                    <div>
-                                        <p className="font-bold text-sm dark:text-gray-100 italic">All-Time High</p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 leading-normal">
-                                            The highest net worth you ever achieved.
-                                        </p>
-                                    </div>
-                                </div>
+                            <path
+                                d={`M ${getPoints('overallNet').split(' ')[0].split(',')[0]},200 L ${getPoints('overallNet')} L ${getPoints('overallNet').split(' ').pop().split(',')[0]},200 Z`}
+                                fill="url(#netWorthFill)"
+                            />
+                            <polyline fill="none" stroke={MAGENTA} strokeWidth="2.5" strokeDasharray="8 7" points={getPoints('totalAssets')} />
+                            <polyline fill="none" stroke={CYAN} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" points={getPoints('overallNet')} />
 
-                                <div className="flex gap-3">
-                                    <Target size={18} className="text-purple-500 shrink-0 mt-0.5" />
-                                    <div>
-                                        <p className="font-bold text-sm dark:text-gray-100 italic">Next Milestone</p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 leading-normal">
-                                            Your next goal. We set round numbers for you to reach.
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
-                                    <p className="text-xs font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
-                                        <Calendar size={14} /> When to snapshot?
-                                    </p>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-normal">
-                                        Once a week or once a month is perfect. Regularity makes the charts accurate!
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <button
-                            onClick={() => setShowInfo(false)}
-                            className="w-full mt-8 bg-black dark:bg-white text-white dark:text-black font-bold py-3.5 rounded-2xl active:scale-95 transition-all shadow-lg"
-                        >
-                            Got it!
-                        </button>
+                            {netPointList.map(([x, y], i) => (
+                                i === netPointList.length - 1 ? (
+                                    <circle key={i} cx={x} cy={y} r="7" fill={CYAN} />
+                                ) : (
+                                    <circle key={i} cx={x} cy={y} r="6" fill="none" stroke={CYAN} strokeWidth="2" />
+                                )
+                            ))}
+                        </svg>
                     </div>
-                </div>,
-                document.body
+
+                    <div className="flex items-center justify-between font-mono text-[12px] uppercase tracking-[0.1em] md:text-[13px]" style={{ color: TEXT_MUTED }}>
+                        {axisLabels.map((label, i) => <span key={i}>{label}</span>)}
+                    </div>
+                </>
+            ) : (
+                <div
+                    className="flex h-[170px] flex-col items-center justify-center gap-2 border border-dashed px-6 text-center md:h-[240px]"
+                    style={{ borderColor: 'rgba(255,255,255,0.18)', color: TEXT_DIM }}
+                >
+                    <TrendingUp size={32} style={{ color: CYAN, opacity: 0.4 }} />
+                    <p className="text-[14px]">Save a couple of snapshots to start seeing your line.</p>
+                </div>
             )}
 
-            {/* Interactive Dashboard Card */}
-            <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 md:p-8 shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden relative group">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-                    {/* Multi-Layer Chart */}
-                    <div className="lg:col-span-2">
-                        <div className="flex items-center justify-between mb-6">
-                            <div>
-                                <h3 className="text-sm font-bold uppercase tracking-widest text-gray-400">The Growth Gap</h3>
-                                <p className="text-xs text-gray-400 mt-1">Assets (Light) vs Net Worth (Dark)</p>
-                            </div>
-                            <div className="flex items-center gap-2 text-xs font-bold text-green-500 bg-green-50 dark:bg-green-500/10 px-2 py-1 rounded-md">
-                                <Zap size={14} />
-                                Live Analysis
-                            </div>
-                        </div>
-
-                        {chartData.length >= 2 ? (
-                            <div className="h-56 w-full relative">
-                                <svg viewBox="0 0 1000 200" className="w-full h-full overflow-visible">
-                                    <defs>
-                                        <linearGradient id="assetGradient" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.15" />
-                                            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
-                                        </linearGradient>
-                                        <linearGradient id="netGradient" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="0%" stopColor="#22c55e" stopOpacity="0.4" />
-                                            <stop offset="100%" stopColor="#22c55e" stopOpacity="0" />
-                                        </linearGradient>
-                                    </defs>
-
-                                    {/* Assets Layer */}
-                                    <path
-                                        d={`M ${getPoints('totalAssets').split(" ")[0].split(",")[0]},200 L ${getPoints('totalAssets')} L ${getPoints('totalAssets').split(" ").pop().split(",")[0]},200 Z`}
-                                        fill="url(#assetGradient)"
-                                    />
-                                    <polyline
-                                        fill="none"
-                                        stroke="#3b82f6"
-                                        strokeWidth="2"
-                                        strokeDasharray="4 4"
-                                        strokeOpacity="0.5"
-                                        points={getPoints('totalAssets')}
-                                    />
-
-                                    {/* Net Worth Layer */}
-                                    <path
-                                        d={`M ${getPoints('overallNet').split(" ")[0].split(",")[0]},200 L ${getPoints('overallNet')} L ${getPoints('overallNet').split(" ").pop().split(",")[0]},200 Z`}
-                                        fill="url(#netGradient)"
-                                    />
-                                    <polyline
-                                        fill="none"
-                                        stroke="#22c55e"
-                                        strokeWidth="4"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        points={getPoints('overallNet')}
-                                    />
-                                </svg>
-                            </div>
-                        ) : (
-                            <div className="h-56 flex flex-col items-center justify-center border-2 border-dashed border-gray-100 dark:border-gray-700/50 rounded-2xl text-gray-400">
-                                <TrendingUp size={48} className="mb-2 opacity-20" />
-                                <p className="text-sm italic text-center px-6">Record your first snapshot to start visualizing the "Growth Gap" between your assets and debt.</p>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Snapshot Statistics */}
-                    <div className="space-y-6 flex flex-col">
-                        <h3 className="text-sm font-bold uppercase tracking-widest text-gray-400">Snapshot Stats</h3>
-
-                        <div className="grid grid-cols-1 gap-4 flex-1">
-                            {/* Velocity Widget */}
-                            <div className="p-4 bg-gray-50 dark:bg-gray-900/40 rounded-2xl border border-gray-100 dark:border-transparent flex items-center gap-4">
-                                <div className="p-3 bg-blue-500/10 text-blue-500 rounded-xl">
-                                    <Zap size={20} />
-                                </div>
-                                <div>
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Velocity</p>
-                                    <p className="text-lg font-bold dark:text-white">
-                                        {formatMoney(velocity, currency)}<span className="text-[10px] text-gray-400 ml-1">/ day</span>
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Momentum Widget */}
-                            <div className="p-4 bg-gray-50 dark:bg-gray-900/40 rounded-2xl border border-gray-100 dark:border-transparent flex items-center gap-4">
-                                <div className="p-3 bg-green-500/10 text-green-500 rounded-xl">
-                                    <TrendingUp size={20} />
-                                </div>
-                                <div>
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Momentum</p>
-                                    <p className="text-lg font-bold dark:text-white">
-                                        {formatMoney(momentum, currency)}<span className="text-[10px] text-gray-400 ml-1">avg/ day</span>
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* ATH Widget */}
-                            <div className="p-4 bg-gray-50 dark:bg-gray-900/40 rounded-2xl border border-gray-100 dark:border-transparent flex items-center gap-4">
-                                <div className="p-3 bg-yellow-500/10 text-yellow-500 rounded-xl">
-                                    <Award size={20} />
-                                </div>
-                                <div>
-                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">All-Time High</p>
-                                    <p className="text-lg font-bold dark:text-white">
-                                        {formatMoney(allTimeHigh, currency)}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+            <div className="border-t pt-4" style={{ borderColor: 'rgba(255,255,255,0.12)' }}>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                    <span className="font-mono text-[13px]" style={{ color: TEXT_MUTED }}>
+                        Next round number: {formatMoney(nextMilestone, currency)}
+                    </span>
+                    <span className="font-mono text-[13px] font-semibold" style={{ color: CYAN }}>{milestoneProgress.toFixed(0)}%</span>
                 </div>
-
-                {/* Milestone Footer */}
-                <div className="mt-8 pt-8 border-t border-gray-50 dark:border-gray-700/50">
-                    <div className="flex items-center justify-between mb-3 px-1">
-                        <div className="flex items-center gap-2">
-                            <Target size={16} className="text-purple-500" />
-                            <span className="text-xs font-bold text-gray-500 dark:text-gray-400">Next Milestone: {formatMoney(nextMilestone, currency)}</span>
-                        </div>
-                        <span className="text-xs font-bold text-purple-500">{milestoneProgress.toFixed(0)}%</span>
-                    </div>
-                    <div className="h-3 bg-gray-100 dark:bg-gray-700/50 rounded-full overflow-hidden">
-                        <div
-                            className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all duration-1000"
-                            style={{ width: `${milestoneProgress}%` }}
-                        ></div>
-                    </div>
+                <div className="h-3 w-full border" style={{ borderColor: 'rgba(255,255,255,0.16)', backgroundColor: TRACK_BG }}>
+                    <div
+                        className="h-full transition-[width] duration-700"
+                        style={{
+                            width: `${milestoneProgress}%`,
+                            backgroundImage: 'repeating-linear-gradient(135deg, #7ee9ff 0 6px, #3fa8bd 6px 12px)',
+                        }}
+                    />
                 </div>
-            </div>
-
-            {/* Timeline Section */}
-            <div className="space-y-4">
-                <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 px-2 opacity-50">Discovery Timeline</h3>
-                {history.length === 0 ? (
-                    <div className="text-center py-16 bg-white dark:bg-gray-800 rounded-3xl border border-dashed border-gray-200 dark:border-gray-700">
-                        <Calendar className="mx-auto text-gray-300 mb-4 opacity-30" size={56} />
-                        <p className="text-gray-500 dark:text-gray-400 font-medium">Your financial story starts here.</p>
-                        <p className="text-xs text-gray-400 mt-1">Take a snapshot to record your current progress.</p>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {history.map((snapshot) => (
-                            <div
-                                key={snapshot.id}
-                                className="bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 group hover:shadow-md transition-all relative overflow-hidden"
-                            >
-                                <div className="flex justify-between items-start mb-4 relative z-10">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2.5 bg-gray-50 dark:bg-gray-700 rounded-xl">
-                                            <Calendar size={18} className="text-gray-400" />
-                                        </div>
-                                        <div>
-                                            <p className="text-xs font-bold text-gray-400 uppercase tracking-tighter">
-                                                {new Date(snapshot.date).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
-                                            </p>
-                                            <p className="text-[10px] text-gray-500 font-mono">
-                                                {new Date(snapshot.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={() => deleteSnapshot(snapshot.id)}
-                                        className="p-2 text-gray-400 hover:text-red-500 transition-all"
-                                    >
-                                        <Trash2 size={16} />
-                                    </button>
-                                </div>
-
-                                <div className="flex items-end justify-between border-t border-gray-50 dark:border-gray-700/50 pt-5 mt-2 relative z-10">
-                                    <div>
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Net Worth</p>
-                                        <p className={`text-xl font-bold font-mono ${snapshot.overallNet >= 0 ? 'text-gray-900 dark:text-white' : 'text-red-500'}`}>
-                                            {formatMoney(snapshot.overallNet, snapshot.currency)}
-                                        </p>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Growth Gap</p>
-                                        <div className="flex items-center gap-2 justify-end">
-                                            <span className="text-xs font-bold text-blue-500">{formatMoney(snapshot.totalAssets, snapshot.currency)}</span>
-                                            <ArrowRight size={10} className="text-gray-300" />
-                                            <span className="text-xs font-bold text-red-500">{formatMoney(snapshot.totalDebt, snapshot.currency)}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Subtlest Background Accent */}
-                                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-gray-50 to-transparent dark:from-gray-700/20 opacity-50 -mr-8 -mt-8 rounded-full pointer-events-none"></div>
-                            </div>
-                        ))}
-                    </div>
-                )}
             </div>
         </div>
+    );
+}
+
+function ChartGridTexture() {
+    return (
+        <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+                backgroundImage:
+                    'repeating-linear-gradient(90deg, rgba(126,233,255,0.09) 0 1px, transparent 1px 76px),' +
+                    'repeating-linear-gradient(0deg, rgba(126,233,255,0.09) 0 1px, transparent 1px 40px)',
+            }}
+        />
+    );
+}
+
+function StatPanel({ icon, accent = CYAN, label, value, note }) {
+    const Icon = icon;
+    return (
+        <div className="border p-4 md:flex md:flex-1 md:flex-col md:justify-center md:gap-3 md:p-5" style={{ borderColor: PANEL_BORDER, backgroundColor: PANEL_BG }}>
+            {/* Mobile: single-line row, label left / value right. Desktop: full block, value+note below. */}
+            <div className="flex items-center justify-between gap-3 md:justify-start">
+                <div className="flex items-center gap-3">
+                    <div
+                        className="flex h-[34px] w-[34px] shrink-0 items-center justify-center border"
+                        style={{ borderColor: accent, backgroundColor: `${accent}1a` }}
+                    >
+                        <Icon size={17} style={{ color: accent }} />
+                    </div>
+                    <h3 className="font-display text-[17px] font-semibold text-white md:text-[18px]">{label}</h3>
+                </div>
+                <span className="font-mono text-[19px] font-semibold text-white md:hidden">{value}</span>
+            </div>
+            <p className="mt-3 hidden font-mono text-[26px] font-semibold text-white md:block md:text-[30px]">{value}</p>
+            <p className="mt-1 hidden text-[15px] md:block" style={{ color: TEXT_MUTED }}>{note}</p>
+        </div>
+    );
+}
+
+function SnapshotTable({ history, deleteSnapshot, currency }) {
+    return (
+        <div className="border" style={{ borderColor: PANEL_BORDER, backgroundColor: PANEL_BG }}>
+            <div className="px-5 py-5 md:px-6">
+                <h3 className="font-display text-[20px] font-semibold text-white md:text-[22px]">Saved snapshots</h3>
+            </div>
+
+            {history.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 border-t px-6 py-14 text-center" style={{ borderColor: 'rgba(255,255,255,0.09)', color: TEXT_DIM }}>
+                    <Calendar size={32} style={{ opacity: 0.4 }} />
+                    <p className="text-[15px]">Your financial story starts here — take a snapshot to record today.</p>
+                </div>
+            ) : (
+                <>
+                    <div
+                        className="hidden border-t px-6 py-[14px] font-mono text-[13px] uppercase tracking-[0.14em] md:grid md:grid-cols-[200px_1fr_1fr_1fr_60px]"
+                        style={{ borderColor: 'rgba(255,255,255,0.09)', color: TEXT_MUTED }}
+                    >
+                        <span>Date</span>
+                        <span>Net worth</span>
+                        <span>Owned</span>
+                        <span>Owed</span>
+                        <span />
+                    </div>
+
+                    <div>
+                        {history.map((snapshot) => (
+                            <SnapshotRow key={snapshot.id} snapshot={snapshot} onDelete={() => deleteSnapshot(snapshot.id)} currency={currency} />
+                        ))}
+                    </div>
+                </>
+            )}
+
+            <p className="border-t px-5 py-4 text-[13px] md:px-6" style={{ borderColor: 'rgba(255,255,255,0.09)', color: TEXT_DIM }}>
+                Save one every week or month — that's enough to see the trend.
+            </p>
+        </div>
+    );
+}
+
+function SnapshotRow({ snapshot, onDelete, currency }) {
+    const date = new Date(snapshot.date);
+    const dateLabel = date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+    const timeLabel = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const snapCurrency = snapshot.currency || currency;
+    const border = { borderColor: 'rgba(255,255,255,0.09)' };
+
+    return (
+        <>
+            {/* Mobile: date + net worth on one line, owned/owed on the next. */}
+            <div className="flex flex-col gap-3 border-t px-5 py-[18px] md:hidden" style={border}>
+                <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                        <Calendar size={16} style={{ color: TEXT_DIM }} />
+                        <div>
+                            <p className="text-[17px] text-white">{dateLabel}</p>
+                            <p className="font-mono text-[13px]" style={{ color: TEXT_DIM }}>{timeLabel}</p>
+                        </div>
+                    </div>
+                    <span className="font-mono text-[20px] font-semibold text-white">{formatMoney(snapshot.overallNet, snapCurrency)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 font-mono text-[15px]">
+                        <span style={{ color: CYAN }}>{formatMoney(snapshot.totalAssets, snapCurrency)}</span>
+                        <span style={{ color: TEXT_DIM }}>owned</span>
+                        <span style={{ color: MAGENTA }}>{formatMoney(snapshot.totalDebt, snapCurrency)}</span>
+                        <span style={{ color: TEXT_DIM }}>owed</span>
+                    </div>
+                    <RemoveButton onClick={onDelete} />
+                </div>
+            </div>
+
+            {/* Desktop: table row. */}
+            <div className="hidden border-t px-6 py-[18px] md:grid md:grid-cols-[200px_1fr_1fr_1fr_60px] md:items-center" style={border}>
+                <div className="flex items-center gap-3">
+                    <Calendar size={16} style={{ color: TEXT_DIM }} />
+                    <div>
+                        <p className="text-[17px] text-white">{dateLabel}</p>
+                        <p className="font-mono text-[13px]" style={{ color: TEXT_DIM }}>{timeLabel}</p>
+                    </div>
+                </div>
+                <span className="font-mono text-[22px] font-semibold text-white">{formatMoney(snapshot.overallNet, snapCurrency)}</span>
+                <span className="font-mono text-[19px]" style={{ color: CYAN }}>{formatMoney(snapshot.totalAssets, snapCurrency)}</span>
+                <span className="font-mono text-[19px]" style={{ color: MAGENTA }}>{formatMoney(snapshot.totalDebt, snapCurrency)}</span>
+                <RemoveButton onClick={onDelete} className="justify-self-center" />
+            </div>
+        </>
+    );
+}
+
+function RemoveButton({ onClick, className = '' }) {
+    const [hover, setHover] = useState(false);
+    return (
+        <button
+            onClick={onClick}
+            onMouseEnter={() => setHover(true)}
+            onMouseLeave={() => setHover(false)}
+            className={`flex h-10 w-10 shrink-0 items-center justify-center border transition-colors ${className}`}
+            style={{ borderColor: hover ? MAGENTA : 'rgba(255,255,255,0.18)' }}
+        >
+            <Trash2 size={15} style={{ color: hover ? MAGENTA : '#a6a4c4' }} />
+        </button>
     );
 }
