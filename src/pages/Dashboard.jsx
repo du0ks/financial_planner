@@ -33,11 +33,18 @@ export default function Dashboard({ data }) {
         updateOther, removeOther, addOther,
         saveSnapshot,
         totals,
+        convertCurrencyAmount, ratesReady, hasForeignHoldings,
     } = data;
 
     return (
         <div className="flex flex-col gap-7 pb-6 md:gap-8">
-            <SummaryCards totals={totals} currency={currency} history={history} />
+            <SummaryCards
+                totals={totals}
+                currency={currency}
+                history={history}
+                ratesReady={ratesReady}
+                hasForeignHoldings={hasForeignHoldings}
+            />
 
             {/* Your cards */}
             <section className="flex flex-col gap-5">
@@ -57,7 +64,14 @@ export default function Dashboard({ data }) {
                         </span>
                     </div>
                 </div>
-                <CardTable cards={cards} updateCard={updateCard} removeCard={removeCard} currency={currency} />
+                <CardTable
+                    cards={cards}
+                    updateCard={updateCard}
+                    removeCard={removeCard}
+                    currency={currency}
+                    convertCurrencyAmount={convertCurrencyAmount}
+                    ratesReady={ratesReady}
+                />
             </section>
 
             {/* Cash & Income | Bills every month */}
@@ -69,6 +83,8 @@ export default function Dashboard({ data }) {
                     addFund={addFund}
                     currency={currency}
                     totals={totals}
+                    convertCurrencyAmount={convertCurrencyAmount}
+                    ratesReady={ratesReady}
                 />
                 <OtherTable
                     others={others}

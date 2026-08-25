@@ -19,17 +19,25 @@ const TRACK_BG = '#16112a';
 // for every total on this screen — the data layer never needed a fix, just this selector back.
 const CURRENCIES = ['TRY', 'UAH', 'EUR', 'USD'];
 
-export default function CardTable({ cards, updateCard, removeCard, currency }) {
+export default function CardTable({ cards, updateCard, removeCard, currency, convertCurrencyAmount, ratesReady }) {
     return (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
             {cards.map((card) => (
-                <CardPanel key={card.id} card={card} updateCard={updateCard} removeCard={removeCard} currency={currency} />
+                <CardPanel
+                    key={card.id}
+                    card={card}
+                    updateCard={updateCard}
+                    removeCard={removeCard}
+                    currency={currency}
+                    convertCurrencyAmount={convertCurrencyAmount}
+                    ratesReady={ratesReady}
+                />
             ))}
         </div>
     );
 }
 
-function CardPanel({ card, updateCard, removeCard, currency }) {
+function CardPanel({ card, updateCard, removeCard, currency, convertCurrencyAmount, ratesReady }) {
     const limit = parseFloat(card.limit) || 0;
     const debt = parseFloat(card.debt) || 0;
     const money = parseFloat(card.money) || 0;
@@ -39,6 +47,7 @@ function CardPanel({ card, updateCard, removeCard, currency }) {
     const hasDebt = debt > 0;
     const accent = hasDebt ? MAGENTA : CYAN;
     const usedPct = limit > 0 ? Math.min(100, Math.max(0, (debt / limit) * 100)) : 0;
+    const showApprox = ratesReady && cardCurrency !== currency && typeof convertCurrencyAmount === 'function';
 
     return (
         <div className="border" style={{ borderColor: PANEL_BORDER, backgroundColor: PANEL_BG }}>
@@ -70,9 +79,18 @@ function CardPanel({ card, updateCard, removeCard, currency }) {
                     onChange={(code) => updateCard(card.id, 'currency', code)}
                 />
                 <div className="ml-auto flex shrink-0 items-center gap-3">
-                    <span className="font-mono text-[17px] font-bold md:text-[19px]" style={{ color: accent }}>
-                        {cardNet > 0 ? '+' : ''}{formatMoney(cardNet, cardCurrency)}
-                    </span>
+                    <div className="text-right">
+                        <span className="font-mono text-[17px] font-bold md:text-[19px]" style={{ color: accent }}>
+                            {cardNet > 0 ? '+' : ''}{formatMoney(cardNet, cardCurrency)}
+                        </span>
+                        {/* Only when this card is held in another currency — one approximation per
+                            panel, not one per field. */}
+                        {showApprox && (
+                            <p className="font-mono text-[12px]" style={{ color: TEXT_MUTED }}>
+                                ≈ {formatMoney(convertCurrencyAmount(cardNet, cardCurrency), currency)}
+                            </p>
+                        )}
+                    </div>
                     <RemoveButton onClick={() => removeCard(card.id)} />
                 </div>
             </div>
@@ -179,12 +197,12 @@ function CardField({ label, value, displayValue, symbol, onCommit, textColor, bo
     );
 }
 
-function CurrencySelect({ value, onChange }) {
+export function CurrencySelect({ value, onChange, ariaLabel = 'Card currency' }) {
     return (
         <select
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            aria-label="Card currency"
+            aria-label={ariaLabel}
             className="h-7 shrink-0 border bg-transparent px-[6px] font-mono text-[12px] font-semibold uppercase tracking-[0.08em] outline-none transition-colors"
             style={{ borderColor: 'rgba(255,255,255,0.22)', color: '#d8d6f0', backgroundColor: FIELD_BG }}
             onFocus={(e) => { e.currentTarget.style.borderColor = '#7ee9ff'; }}

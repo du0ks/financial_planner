@@ -10,11 +10,10 @@ import { formatMoney, parseCloudNumber } from '../utils/format';
 // investment entries exist their value still counts toward totals — they're just no longer
 // editable from this screen. Flagged in the handoff summary; easy to bring back if needed.
 //
-// Also: the spec's explainer copy ("Gold is not counted in the net worth on your Money page")
-// doesn't match this app's actual math — totalInvestmentValue (which includes gold) already
-// feeds into totalAssets/overallNet in useFinanceData.js. Rather than ship a line that's false
-// about the user's own numbers, or silently change what counts toward net worth, the note
-// below states the real behavior instead of the spec's literal copy. Also flagged in summary.
+// On the spec's explainer copy ("Gold is not counted in the net worth on your Money page"):
+// this was false for a while — totalInvestmentValue fed into overallNet — so the note below
+// was rewritten to describe the real math. The Money headline is now cash-only again, so the
+// spec's original claim holds and the note has been restored to match.
 const AMBER = '#ffc861';
 const CYAN = '#7ee9ff';
 const MAGENTA = '#ff5fb4';
@@ -289,8 +288,9 @@ function ExplainerNote() {
         >
             <Info size={18} className="mt-0.5 shrink-0" style={{ color: CYAN }} />
             <span>
-                Your gold is counted in the net worth on your Money page — this panel just keeps it visually
-                separate, so a swing in the gold price doesn't get lost in the bigger number.
+                Your gold is not counted in the total on your Money page — that number is the cash you
+                have, minus what you owe. Keeping gold here means a swing in the gold price can't
+                move a figure you read as spendable money.
             </span>
         </div>
     );

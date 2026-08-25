@@ -1,5 +1,6 @@
 import { ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { formatMoney } from '../utils/format';
+import { snapshotCashNet } from '../utils/snapshots';
 
 // Neon Grid design tokens (design_handoff_neon_grid/README.md) — this file now renders the
 // Money screen's hero panel only. The old nine-stat-card grid is gone; "Your cards" totals
@@ -9,24 +10,34 @@ const MAGENTA = '#ff5fb4';
 const TEXT_MUTED = '#bab8d8';
 const TEXT_DIM = '#a6a4c4';
 const TEXT_BODY = '#e2e0f7';
+const AMBER = '#ffc861';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-// README (State Management): "newest snapshot at least 28 days old, overallNet - snapshot.overallNet."
-function findBaselineSnapshot(history) {
+// README (State Management): "newest snapshot at least 28 days old". Snapshots that can't be
+// placed on the current cash basis — another currency, or too old to reconstruct — are skipped
+// rather than compared unfairly, so the chip simply doesn't render until a usable one exists.
+function findBaselineSnapshot(history, currency) {
     const cutoff = Date.now() - 28 * DAY_MS;
-    const eligible = (history || []).filter((snap) => snap?.date && new Date(snap.date).getTime() <= cutoff);
+    const eligible = (history || []).filter((snap) => (
+        snap?.date
+        && new Date(snap.date).getTime() <= cutoff
+        && snapshotCashNet(snap, currency) !== null
+    ));
     if (!eligible.length) return null;
     return eligible.reduce((newest, snap) => (
         new Date(snap.date).getTime() > new Date(newest.date).getTime() ? snap : newest
     ));
 }
 
-export default function SummaryCards({ totals, currency, history }) {
-    const { overallNet, totalAssets } = totals;
-    const baseline = findBaselineSnapshot(history);
-    const delta = baseline ? overallNet - baseline.overallNet : null;
+export default function SummaryCards({ totals, currency, history, ratesReady = true, hasForeignHoldings = false }) {
+    const { overallNet, totalCash, totalCardDebt } = totals;
+    const baseline = findBaselineSnapshot(history, currency);
+    // Compared on cash position (see utils/snapshots.js): bills are a monthly cost rather than
+    // a balance, and older snapshots never recorded them.
+    const delta = baseline ? (totalCash - totalCardDebt) - snapshotCashNet(baseline, currency) : null;
     const isDown = delta !== null && delta < 0;
+    const showRatesWarning = hasForeignHoldings && !ratesReady;
 
     return (
         <section
@@ -44,7 +55,7 @@ export default function SummaryCards({ totals, currency, history }) {
                         className="mb-4 font-mono text-[13px] font-medium uppercase tracking-[0.18em] md:text-[15px]"
                         style={{ color: TEXT_MUTED }}
                     >
-                        Everything you own, minus what you owe
+                        Your money, minus card debt and this month's bills
                     </p>
                     <div className="flex flex-wrap items-baseline gap-6">
                         <span
@@ -55,6 +66,14 @@ export default function SummaryCards({ totals, currency, history }) {
                         </span>
                         {delta !== null && <DeltaChip delta={delta} currency={currency} isDown={isDown} />}
                     </div>
+                    {showRatesWarning && (
+                        <p
+                            className="mt-5 max-w-[600px] font-mono text-[13px] md:text-[14px]"
+                            style={{ color: AMBER, textWrap: 'pretty' }}
+                        >
+                            Exchange rates aren't loaded — amounts in other currencies are counted at face value.
+                        </p>
+                    )}
                     {delta !== null && (
                         <p
                             className="mt-5 max-w-[600px] text-[17px] md:text-[19px]"
@@ -70,7 +89,7 @@ export default function SummaryCards({ totals, currency, history }) {
                 <div className="shrink-0 md:text-right">
                     <p className="font-mono text-[14px]" style={{ color: TEXT_MUTED }}>Cash you can touch</p>
                     <p className="mt-2 font-mono text-[30px] font-semibold md:text-[38px]" style={{ color: CYAN }}>
-                        {formatMoney(totalAssets, currency)}
+                        {formatMoney(totalCash, currency)}
                     </p>
                     <p className="mt-1 text-[15px] md:text-[16px]" style={{ color: TEXT_DIM }}>before paying card debt</p>
                 </div>
