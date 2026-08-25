@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import useLocalStorage from './useLocalStorage';
 import { generateUUID } from '../utils/uuid';
 import { supabase } from '../utils/supabase';
+import { snapshotCashNet } from '../utils/snapshots';
 
 const DEFAULT_CARD_FIELDS = {
     interestRate: 0,
@@ -10,6 +11,8 @@ const DEFAULT_CARD_FIELDS = {
     minimumPayment: 0,
     currency: 'TRY'
 };
+
+const DEFAULT_FUND_CURRENCY = 'TRY';
 
 const DEFAULT_OTHER_FIELDS = {
     currency: 'TRY',
@@ -25,9 +28,9 @@ const DEFAULT_DATA = {
         { id: 2, name: 'Card B (Backup)', limit: 5000, money: 0, debt: 0, ...DEFAULT_CARD_FIELDS },
     ],
     funds: [
-        { id: 101, name: 'Salary Account', amount: 8500 },
-        { id: 102, name: 'Savings Account', amount: 12000 },
-        { id: 103, name: 'Wallet / Cash', amount: 450 }
+        { id: 101, name: 'Salary Account', amount: 8500, currency: DEFAULT_FUND_CURRENCY },
+        { id: 102, name: 'Savings Account', amount: 12000, currency: DEFAULT_FUND_CURRENCY },
+        { id: 103, name: 'Wallet / Cash', amount: 450, currency: DEFAULT_FUND_CURRENCY }
     ],
     others: [
         { id: 201, name: 'Rent', amount: 0, ...DEFAULT_OTHER_FIELDS, category: 'housing' },
@@ -42,34 +45,51 @@ const INVESTMENT_NAMES = {
     custom: 'Custom Investment'
 };
 
+const IDENTITY_RATES = { TRY: 1, UAH: 1, EUR: 1, USD: 1 };
+
 const numericValue = (value) => parseFloat(value) || 0;
 const clampDay = (value, fallback) => Math.min(31, Math.max(1, numericValue(value) || fallback));
 
-const normalizeCards = (items) => (
+// An item saved before per-item currency existed holds an amount that was typed under
+// whatever display currency was selected at the time — so the fallback must be that
+// currency, never a hardcoded 'TRY'. Passing a wrong fallback silently misconverts real
+// money, which is exactly the bug these parameters exist to prevent.
+const normalizeCards = (items, fallbackCurrency = DEFAULT_CARD_FIELDS.currency) => (
     Array.isArray(items)
         ? items.map(card => ({
             ...DEFAULT_CARD_FIELDS,
             ...card,
             statementDay: clampDay(card?.statementDay, DEFAULT_CARD_FIELDS.statementDay),
             paymentDueDays: Math.max(0, numericValue(card?.paymentDueDays ?? DEFAULT_CARD_FIELDS.paymentDueDays)),
-            currency: card?.currency || DEFAULT_CARD_FIELDS.currency
+            currency: card?.currency || fallbackCurrency
         }))
         : DEFAULT_DATA.cards
 );
 
-const normalizeFunds = (items) => Array.isArray(items) ? items : DEFAULT_DATA.funds;
+const normalizeFunds = (items, fallbackCurrency = DEFAULT_FUND_CURRENCY) => (
+    Array.isArray(items)
+        ? items.map(fund => ({
+            ...fund,
+            currency: fund?.currency || fallbackCurrency
+        }))
+        : DEFAULT_DATA.funds
+);
 
-const normalizeOthers = (items) => (
+const normalizeOthers = (items, fallbackCurrency = DEFAULT_OTHER_FIELDS.currency) => (
     Array.isArray(items)
         ? items.map(other => ({
             ...DEFAULT_OTHER_FIELDS,
             ...other,
             recurrenceDay: clampDay(other?.recurrenceDay, DEFAULT_OTHER_FIELDS.recurrenceDay),
-            currency: other?.currency || DEFAULT_OTHER_FIELDS.currency,
+            currency: other?.currency || fallbackCurrency,
             endDate: other?.endDate || null
         }))
         : DEFAULT_DATA.others
 );
+
+// True when any item still predates per-item currency, so the one-off stamping effects
+// below know to run (and, once stamped, to stop).
+const needsCurrencyStamp = (items) => Array.isArray(items) && items.some(item => item && !item.currency);
 
 const createGoldInvestment = (amount = 0) => ({
     id: generateUUID(),
@@ -140,11 +160,19 @@ export default function useFinanceData(session) {
     const [rawEvents, setEvents] = useLocalStorage(`${prefix}events_v3`, []);
     const [goldPrice, setGoldPrice] = useState(0); // USD per gram
     const [goldChanges, setGoldChanges] = useState({ d1: 0, w1: 0, m1: 0, y1: 0 });
-    const [exchangeRates, setExchangeRates] = useState({ TRY: 1, UAH: 1, EUR: 1, USD: 1 });
+    // Market rates are not user data: they live under a bare key so they survive a switch
+    // between the demo and real accounts. null means "never successfully fetched".
+    const [storedFx, setStoredFx] = useLocalStorage('fx_rates_v1', null);
 
-    const cards = normalizeCards(rawCards);
-    const funds = normalizeFunds(rawFunds);
-    const others = normalizeOthers(rawOthers);
+    const ratesReady = Boolean(storedFx?.rates);
+    const ratesFetchedAt = storedFx?.fetchedAt || null;
+    // Identity rates are the only sane arithmetic fallback, but they quietly treat every
+    // currency as equal — so anything user-facing must gate on ratesReady, not on this.
+    const exchangeRates = storedFx?.rates || IDENTITY_RATES;
+
+    const cards = normalizeCards(rawCards, currency);
+    const funds = normalizeFunds(rawFunds, currency);
+    const others = normalizeOthers(rawOthers, currency);
     const investments = normalizeInvestments(rawInvestments, legacyGoldGrams);
     const incomes = normalizeIncomes(rawIncomes);
     const events = normalizeEvents(rawEvents);
@@ -156,6 +184,22 @@ export default function useFinanceData(session) {
             setInvestments(normalizeInvestments(rawInvestments, legacyGoldGrams));
         }
     }, [rawInvestments, legacyGoldGrams, setInvestments]);
+
+    // Stamp pre-currency cards/funds/bills with the display currency they were typed under,
+    // once, then stop. Keyed on the RAW arrays: the normalized ones are rebuilt every render,
+    // so depending on them would loop forever. The needsCurrencyStamp guard is what makes
+    // this self-terminating.
+    useEffect(() => {
+        if (needsCurrencyStamp(rawCards)) setCards(normalizeCards(rawCards, currency));
+    }, [rawCards, currency, setCards]);
+
+    useEffect(() => {
+        if (needsCurrencyStamp(rawFunds)) setFunds(normalizeFunds(rawFunds, currency));
+    }, [rawFunds, currency, setFunds]);
+
+    useEffect(() => {
+        if (needsCurrencyStamp(rawOthers)) setOthers(normalizeOthers(rawOthers, currency));
+    }, [rawOthers, currency, setOthers]);
 
     // Keep the legacy storage/cloud field coherent for older clients and backups.
     useEffect(() => {
@@ -181,9 +225,12 @@ export default function useFinanceData(session) {
                 const extendedData = data.extended_data || {};
 
                 // Cloud wins if it exists, while old records receive new defaults.
-                setCards(normalizeCards(data.cards));
-                setFunds(normalizeFunds(data.funds));
-                setOthers(normalizeOthers(data.others));
+                // The cloud amounts were typed under the cloud record's currency, so that —
+                // not the local currency state — is the right fallback for unstamped rows.
+                const cloudCurrency = data.currency || 'TRY';
+                setCards(normalizeCards(data.cards, cloudCurrency));
+                setFunds(normalizeFunds(data.funds, cloudCurrency));
+                setOthers(normalizeOthers(data.others, cloudCurrency));
                 setCurrency(data.currency || 'TRY');
                 setHistory(Array.isArray(data.history) ? data.history : []);
                 setLegacyGoldGrams(data.gold_grams || 0);
@@ -217,12 +264,13 @@ export default function useFinanceData(session) {
                 // Fetch FX Rates
                 const fxRes = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
                 const fxData = await fxRes.json();
-                if (fxData.rates) {
-                    setExchangeRates({
-                        TRY: fxData.rates.TRY,
-                        UAH: fxData.rates.UAH,
-                        EUR: fxData.rates.EUR,
-                        USD: 1
+                // Only store a complete, numeric set — a partial response would leave some
+                // currency silently converting at 1:1.
+                const fetched = fxData?.rates;
+                if (fetched && [fetched.TRY, fetched.UAH, fetched.EUR].every(Number.isFinite)) {
+                    setStoredFx({
+                        rates: { TRY: fetched.TRY, UAH: fetched.UAH, EUR: fetched.EUR, USD: 1 },
+                        fetchedAt: Date.now()
                     });
                 }
 
@@ -273,9 +321,9 @@ export default function useFinanceData(session) {
         const legacyGold = numericValue(normalizedInvestments.find(item => item.type === 'gold')?.amount);
         const payload = {
             user_id: session.user.id,
-            cards: normalizeCards(rawCards),
-            funds: normalizeFunds(rawFunds),
-            others: normalizeOthers(rawOthers),
+            cards: normalizeCards(rawCards, currency),
+            funds: normalizeFunds(rawFunds, currency),
+            others: normalizeOthers(rawOthers, currency),
             currency,
             history: historyList,
             gold_grams: legacyGold,
@@ -312,14 +360,17 @@ export default function useFinanceData(session) {
     };
 
     // CRUD for Cards
-    const addCard = () => setCards([...cards, {
+    // Accepts an optional overrides object so callers (e.g. the Add-card dialog in Settings)
+    // can supply real values instead of the blank template.
+    const addCard = (overrides = {}) => setCards([...cards, {
         id: generateUUID(),
         name: 'New Card',
         limit: 0,
         money: 0,
         debt: 0,
         ...DEFAULT_CARD_FIELDS,
-        currency
+        currency,
+        ...overrides
     }]);
     const updateCard = (id, field, value) => {
         setCards(cards.map(card => card.id === id ? { ...card, [field]: value } : card));
@@ -331,7 +382,7 @@ export default function useFinanceData(session) {
     };
 
     // CRUD for Funds
-    const addFund = () => setFunds([...funds, { id: generateUUID(), name: 'New Account', amount: 0 }]);
+    const addFund = () => setFunds([...funds, { id: generateUUID(), name: 'New Account', amount: 0, currency }]);
     const updateFund = (id, field, value) => {
         setFunds(funds.map(fund => fund.id === id ? { ...fund, [field]: value } : fund));
     };
@@ -431,7 +482,7 @@ export default function useFinanceData(session) {
     const totalLimit = cards.reduce((sum, card) => sum + convertCurrencyAmount(card.limit, card.currency), 0);
     const totalCardDebt = cards.reduce((sum, card) => sum + convertCurrencyAmount(card.debt, card.currency), 0);
     const totalDebt = totalCardDebt;
-    const totalFundCash = funds.reduce((sum, fund) => sum + numericValue(fund.amount), 0);
+    const totalFundCash = funds.reduce((sum, fund) => sum + convertCurrencyAmount(fund.amount, fund.currency), 0);
     const totalCardMoney = cards.reduce((sum, card) => sum + convertCurrencyAmount(card.money, card.currency), 0);
     const totalInvestmentValue = investments.reduce((sum, investment) => sum + getInvestmentValue(investment), 0);
     const monthlyBurn = others.reduce((sum, other) => (
@@ -444,8 +495,17 @@ export default function useFinanceData(session) {
             ? sum + convertCurrencyAmount(income.amount, income.currency)
             : sum
     ), 0);
-    const totalAssets = totalFundCash + totalCardMoney + totalInvestmentValue;
-    const overallNet = totalAssets - totalDebt;
+    // Drives the "rates aren't loaded" warning: a single-currency user must never see it.
+    const hasForeignHoldings = [...cards, ...funds, ...others]
+        .some(item => (item?.currency || currency) !== currency);
+
+    // The Money headline is a cash figure: what you can actually spend, minus what you owe
+    // on cards and the bills still to leave your account this month. Investments stay out of
+    // it so a gold price move doesn't shift the number while you change nothing — they are
+    // still in totalAssets, which History and the Investments screen need.
+    const totalCash = totalFundCash + totalCardMoney;
+    const totalAssets = totalCash + totalInvestmentValue;
+    const overallNet = totalCash - totalCardDebt - monthlyBurn;
     const ccNet = totalCardMoney - totalCardDebt;
     const runway = monthlyBurn > 0 ? totalFundCash / monthlyBurn : null;
 
@@ -458,6 +518,12 @@ export default function useFinanceData(session) {
             totalAssets,
             totalDebt,
             totalInvestmentValue,
+            // Recorded so later comparisons don't have to reconstruct the cash position by
+            // backing investments out of overallNet.
+            totalCash,
+            totalCardDebt,
+            monthlyBurn,
+            netBasis: 'cash',
             currency
         };
         setHistory([snapshot, ...historyList]);
@@ -465,24 +531,30 @@ export default function useFinanceData(session) {
 
     const deleteSnapshot = (id) => setHistory(historyList.filter(snapshot => snapshot.id !== id));
 
-    // Advanced Stats
-    const sortedHistory = [...historyList].sort((a, b) => new Date(a.date) - new Date(b.date));
+    // Advanced Stats. All of these compare against past snapshots, so they run on the cash
+    // position (see utils/snapshots.js): snapshots in another currency, or too old to place
+    // on that basis, are skipped rather than silently mixed in.
+    const cashNet = totalCash - totalCardDebt;
+    const comparableHistory = historyList
+        .map(snapshot => ({ snapshot, value: snapshotCashNet(snapshot, currency) }))
+        .filter(entry => entry.value !== null);
+    const sortedComparable = [...comparableHistory].sort((a, b) => new Date(a.snapshot.date) - new Date(b.snapshot.date));
+
+    const daysSince = (date) => Math.max((new Date() - new Date(date)) / (1000 * 60 * 60 * 24), 0.01);
 
     let velocity = 0;
-    if (historyList.length >= 1) {
-        const lastSnap = historyList[0];
-        const days = Math.max((new Date() - new Date(lastSnap.date)) / (1000 * 60 * 60 * 24), 0.01);
-        velocity = (overallNet - lastSnap.overallNet) / days;
+    if (comparableHistory.length >= 1) {
+        const latest = comparableHistory[0];
+        velocity = (cashNet - latest.value) / daysSince(latest.snapshot.date);
     }
 
     let momentum = 0;
-    if (sortedHistory.length >= 1) {
-        const firstSnap = sortedHistory[0];
-        const days = Math.max((new Date() - new Date(firstSnap.date)) / (1000 * 60 * 60 * 24), 0.01);
-        momentum = (overallNet - firstSnap.overallNet) / days;
+    if (sortedComparable.length >= 1) {
+        const earliest = sortedComparable[0];
+        momentum = (cashNet - earliest.value) / daysSince(earliest.snapshot.date);
     }
 
-    const allTimeHigh = Math.max(overallNet, ...historyList.map(snapshot => snapshot.overallNet));
+    const allTimeHigh = Math.max(cashNet, ...comparableHistory.map(entry => entry.value));
 
     // Backup & Restore Logic
     const exportBackup = () => {
@@ -516,9 +588,12 @@ export default function useFinanceData(session) {
                 throw new Error("Invalid backup file format");
             }
 
-            setCards(normalizeCards(data.cards));
-            setFunds(normalizeFunds(data.funds));
-            setOthers(normalizeOthers(data.others));
+            // The backup's own currency is the fallback for rows saved before per-item
+            // currency existed — not the currency state, which setCurrency updates below.
+            const backupCurrency = data.currency || 'TRY';
+            setCards(normalizeCards(data.cards, backupCurrency));
+            setFunds(normalizeFunds(data.funds, backupCurrency));
+            setOthers(normalizeOthers(data.others, backupCurrency));
             setInvestments(normalizeInvestments(data.investments, data.goldGrams));
             setIncomes(normalizeIncomes(data.incomes));
             setEvents(normalizeEvents(data.events));
@@ -545,6 +620,9 @@ export default function useFinanceData(session) {
         goldValue,
         goldChanges,
         exchangeRates,
+        ratesReady,
+        ratesFetchedAt,
+        hasForeignHoldings,
         getInvestmentValue,
         convertCurrencyAmount,
         saveSnapshot, deleteSnapshot,
@@ -560,6 +638,7 @@ export default function useFinanceData(session) {
             totalDebt,
             totalCardDebt,
             totalFundCash,
+            totalCash,
             totalAssets,
             totalInvestmentValue,
             expectedMonthlyIncome,

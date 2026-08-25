@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Banknote, Database, Download, Upload, AlertTriangle, Cloud, User, ArrowRight } from 'lucide-react';
 import { supabase } from '../utils/supabase';
 import { CURRENCY_SYMBOLS } from '../utils/format';
+import AddCardDialog from '../components/AddCardDialog';
 
 // Neon Grid design tokens (design_handoff_neon_grid/README.md).
 const CYAN = '#7ee9ff';
@@ -16,12 +17,27 @@ const ACCENT = { cyan: CYAN, magenta: MAGENTA, amber: AMBER };
 const CURRENCIES = ['TRY', 'UAH', 'EUR', 'USD'];
 
 export default function SettingsView({ data, session }) {
-    const { addCard, addFund, addOther, currency, setCurrency, exportBackup, importBackup } = data;
+    const { addCard, currency, setCurrency, exportBackup, importBackup } = data;
     const userEmail = session?.user?.email;
     const isDemo = Boolean(session?.isDemo);
 
     const [isRestoring, setIsRestoring] = useState(false);
     const [status, setStatus] = useState(null); // 'success' | 'error' | null
+    const [showAddCard, setShowAddCard] = useState(false);
+    const [toast, setToast] = useState(null);
+
+    // Auto-dismiss the post-add confirmation.
+    useEffect(() => {
+        if (!toast) return;
+        const timer = setTimeout(() => setToast(null), 2500);
+        return () => clearTimeout(timer);
+    }, [toast]);
+
+    const handleAddCard = (values) => {
+        addCard(values);
+        setShowAddCard(false);
+        setToast(`"${values.name}" added to your Money page`);
+    };
 
     const handleLogout = () => supabase.auth.signOut();
 
@@ -67,24 +83,12 @@ export default function SettingsView({ data, session }) {
                 <p className="mb-5 text-[15px] md:text-[16px]" style={{ color: TEXT_MUTED }}>
                     New items show up on your Money page straight away.
                 </p>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-[14px]">
+                <div className="grid grid-cols-1">
                     <AddActionButton
                         accent="magenta"
                         title="Add a card"
                         description="Credit card with a limit and debt"
-                        onClick={addCard}
-                    />
-                    <AddActionButton
-                        accent="cyan"
-                        title="Add an account"
-                        description="Bank balance, cash or salary coming in"
-                        onClick={addFund}
-                    />
-                    <AddActionButton
-                        accent="amber"
-                        title="Add a bill"
-                        description="Something you pay every month"
-                        onClick={addOther}
+                        onClick={() => setShowAddCard(true)}
                     />
                 </div>
             </section>
@@ -103,8 +107,8 @@ export default function SettingsView({ data, session }) {
                         ))}
                     </div>
                     <p className="mt-4 text-[13px] leading-relaxed" style={{ color: TEXT_MUTED }}>
-                        Every amount in the app is shown in this currency. Nothing is converted — the numbers you
-                        typed stay as they are.
+                        Totals are shown in this currency. Anything held in another currency is converted at
+                        today's rate; the numbers you typed stay as they are.
                     </p>
                 </PanelCard>
 
@@ -173,6 +177,21 @@ export default function SettingsView({ data, session }) {
                     </button>
                 </PanelCard>
             </div>
+
+            {showAddCard && (
+                <AddCardDialog onSubmit={handleAddCard} onClose={() => setShowAddCard(false)} />
+            )}
+
+            {toast && (
+                <div
+                    role="status"
+                    aria-live="polite"
+                    className="fixed inset-x-4 bottom-24 z-50 border px-4 py-3 font-mono text-[13px] md:inset-x-auto md:right-8 md:bottom-8 md:max-w-[360px]"
+                    style={{ borderColor: MAGENTA, backgroundColor: '#150a1e', color: MAGENTA }}
+                >
+                    {toast}
+                </div>
+            )}
         </div>
     );
 }

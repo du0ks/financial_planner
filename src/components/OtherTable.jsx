@@ -21,7 +21,7 @@ export default function OtherTable({ others, updateOther, removeOther, addOther,
                 <div>
                     <h3 className="font-display text-[20px] font-semibold text-white md:text-[22px]">Bills every month</h3>
                     <p className="mt-1 text-[15px]" style={{ color: TEXT_MUTED }}>
-                        Rent, tuition, subscriptions — counted against your net worth.
+                        Rent, tuition, subscriptions — subtracted from the total above.
                     </p>
                 </div>
                 <div className="shrink-0 text-right">
@@ -45,7 +45,7 @@ export default function OtherTable({ others, updateOther, removeOther, addOther,
                 </div>
             )}
 
-            <div className="hidden px-5 pb-5 pt-1 md:block md:px-6 md:pb-6">
+            <div className="px-5 pb-5 pt-1 md:px-6 md:pb-6">
                 <DashedAddButton label="Add a bill" onClick={addOther} accent={MAGENTA} />
             </div>
         </div>

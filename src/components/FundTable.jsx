@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Trash2, Landmark, PiggyBank, Banknote, Plus } from 'lucide-react';
 import { formatMoney, parseCloudNumber, CURRENCY_SYMBOLS } from '../utils/format';
+import { CurrencySelect } from './CardTable';
 
 // Neon Grid design tokens (design_handoff_neon_grid/README.md). This panel is now fully
 // self-contained (header + rows + footer) — Dashboard.jsx just places it in a 2-col grid
@@ -22,7 +23,7 @@ function FundIcon({ name = '' }) {
     return <Landmark size={18} style={{ color: CYAN }} />;
 }
 
-export default function FundTable({ funds, updateFund, removeFund, addFund, currency, totals }) {
+export default function FundTable({ funds, updateFund, removeFund, addFund, currency, totals, convertCurrencyAmount, ratesReady }) {
     return (
         <div className="flex flex-col border" style={{ borderColor: PANEL_BORDER, backgroundColor: PANEL_BG }}>
             <div className="flex items-start justify-between gap-4 px-5 py-5 md:px-6">
@@ -33,26 +34,40 @@ export default function FundTable({ funds, updateFund, removeFund, addFund, curr
                     </p>
                 </div>
                 <span className="shrink-0 font-mono text-[20px] font-semibold md:text-[22px]" style={{ color: CYAN }}>
-                    {formatMoney(totals.totalAssets, currency)}
+                    {formatMoney(totals.totalFundCash, currency)}
                 </span>
             </div>
 
             <div>
                 {funds.map((fund) => (
-                    <FundRow key={fund.id} fund={fund} updateFund={updateFund} removeFund={removeFund} currency={currency} />
+                    <FundRow
+                        key={fund.id}
+                        fund={fund}
+                        updateFund={updateFund}
+                        removeFund={removeFund}
+                        currency={currency}
+                        convertCurrencyAmount={convertCurrencyAmount}
+                        ratesReady={ratesReady}
+                    />
                 ))}
             </div>
 
-            {/* Per README's Mobile Money note ("Add a card/account/bill is not on this screen"),
-                this footer add-button is desktop-only; mobile funnels adding through Settings. */}
-            <div className="hidden px-5 pb-5 pt-1 md:block md:px-6 md:pb-6">
+            {/* Settings only offers "Add a card" now, so this footer button is the sole way to
+                add an account — it must stay visible on mobile. */}
+            <div className="px-5 pb-5 pt-1 md:px-6 md:pb-6">
                 <DashedAddButton label="Add an account" onClick={addFund} accent={CYAN} />
             </div>
         </div>
     );
 }
 
-function FundRow({ fund, updateFund, removeFund, currency }) {
+function FundRow({ fund, updateFund, removeFund, currency, convertCurrencyAmount, ratesReady }) {
+    // Accounts saved before per-item currency existed fall back to the display currency,
+    // matching CardPanel and BillRow.
+    const fundCurrency = fund.currency || currency;
+    const amount = parseFloat(fund.amount) || 0;
+    const showApprox = ratesReady && fundCurrency !== currency && typeof convertCurrencyAmount === 'function';
+
     return (
         <div
             className="flex items-center gap-3 border-t px-5 py-[18px] md:gap-4 md:px-6"
@@ -71,32 +86,43 @@ function FundRow({ fund, updateFund, removeFund, currency }) {
                 placeholder="Account name"
                 className="min-w-0 flex-1 bg-transparent font-display text-[19px] font-medium text-white outline-none md:text-[21px]"
             />
+            <CurrencySelect
+                value={fundCurrency}
+                onChange={(code) => updateFund(fund.id, 'currency', code)}
+                ariaLabel="Account currency"
+            />
             <AmountField
                 value={fund.amount}
-                symbol={CURRENCY_SYMBOLS[currency]}
+                symbol={CURRENCY_SYMBOLS[fundCurrency]}
                 onCommit={(v) => updateFund(fund.id, 'amount', parseCloudNumber(v))}
+                hint={showApprox ? `≈ ${formatMoney(convertCurrencyAmount(amount, fundCurrency), currency)}` : null}
             />
             <RemoveButton onClick={() => removeFund(fund.id)} />
         </div>
     );
 }
 
-export function AmountField({ value, symbol, onCommit, color = '#ffffff' }) {
+export function AmountField({ value, symbol, onCommit, color = '#ffffff', hint = null }) {
     const [local, setLocal] = useState(value);
     useEffect(() => { setLocal(value); }, [value]);
 
     return (
-        <div className="flex h-12 w-[110px] shrink-0 items-center gap-1 md:h-12 md:w-[118px]">
-            <span className="font-mono text-[15px] opacity-60 md:text-[21px]" style={{ color }}>{symbol}</span>
-            <input
-                type="text"
-                inputMode="decimal"
-                value={local}
-                onChange={(e) => setLocal(e.target.value)}
-                onBlur={() => onCommit(local)}
-                className="w-full min-w-0 bg-transparent text-right font-mono text-[16px] font-medium outline-none md:text-[21px]"
-                style={{ color }}
-            />
+        <div className="w-[110px] shrink-0 md:w-[118px]">
+            <div className="flex h-12 w-full items-center gap-1">
+                <span className="font-mono text-[15px] opacity-60 md:text-[21px]" style={{ color }}>{symbol}</span>
+                <input
+                    type="text"
+                    inputMode="decimal"
+                    value={local}
+                    onChange={(e) => setLocal(e.target.value)}
+                    onBlur={() => onCommit(local)}
+                    className="w-full min-w-0 bg-transparent text-right font-mono text-[16px] font-medium outline-none md:text-[21px]"
+                    style={{ color }}
+                />
+            </div>
+            {hint && (
+                <p className="text-right font-mono text-[12px] leading-tight" style={{ color: TEXT_MUTED }}>{hint}</p>
+            )}
         </div>
     );
 }
