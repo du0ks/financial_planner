@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import useLocalStorage from './useLocalStorage';
 import { generateUUID } from '../utils/uuid';
 import { supabase } from '../utils/supabase';
@@ -146,6 +146,35 @@ const normalizeEvents = (items) => (
 
 const isStillActive = (endDate) => !endDate || new Date(`${endDate}T23:59:59`) >= new Date();
 
+// When this browser last accepted a real user edit. Compared against the cloud row's
+// updated_at so a stale cloud record can't overwrite work that never made it up.
+const TOUCH_SUFFIX = 'touched_at_v1';
+
+const readLocalEditStamp = (prefix) => {
+    try {
+        return Number(window.localStorage.getItem(`${prefix}${TOUCH_SUFFIX}`)) || 0;
+    } catch (error) {
+        console.error(error);
+        return 0;
+    }
+};
+
+// One-time migration. The stamp key is new, so it reads as 0 everywhere — which would hand
+// the first reconciliation to the cloud and wipe browsers holding edits that never pushed
+// (every push has been failing, see the extended_data note in pushToCloud). A browser that
+// already has local data therefore gets stamped "now" and wins once. A genuinely new device
+// has no local data, leaves the key unset, and correctly lets the cloud win.
+const seedLocalEditStamp = (prefix) => {
+    try {
+        const stampKey = `${prefix}${TOUCH_SUFFIX}`;
+        if (!window.localStorage.getItem(stampKey) && window.localStorage.getItem(`${prefix}cards_v3`)) {
+            window.localStorage.setItem(stampKey, String(Date.now()));
+        }
+    } catch (error) {
+        console.error(error);
+    }
+};
+
 export default function useFinanceData(session) {
     const prefix = session?.isDemo ? 'demo_' : 'finance_';
 
@@ -163,6 +192,44 @@ export default function useFinanceData(session) {
     // Market rates are not user data: they live under a bare key so they survive a switch
     // between the demo and real accounts. null means "never successfully fetched".
     const [storedFx, setStoredFx] = useLocalStorage('fx_rates_v1', null);
+
+    const userId = session?.user?.id || null;
+    const isDemo = Boolean(session?.isDemo);
+
+    // Sync status, surfaced in Settings and the header. A failed save used to be nothing but
+    // a console.error, which is how "nothing is being saved" went unnoticed for days.
+    const [syncState, setSyncState] = useState('idle'); // idle | loading | saving | ready | error
+    const [syncError, setSyncError] = useState(null);
+    const [lastSyncedAt, setLastSyncedAt] = useState(null);
+    // Flipped once, after the cloud row has been read. Pushing before that would send this
+    // browser's starting defaults over good cloud data.
+    const [hydrated, setHydrated] = useState(false);
+    const hydratedFor = useRef(null);
+
+    const markLocalEdit = useCallback(() => {
+        try {
+            window.localStorage.setItem(`${prefix}${TOUCH_SUFFIX}`, String(Date.now()));
+        } catch (error) {
+            console.error(error);
+        }
+    }, [prefix]);
+
+    // Only real user edits bump the stamp. Cloud hydration and the currency-stamping
+    // migrations below deliberately use the raw setters — if they stamped too, this browser
+    // would always look newer than the cloud and cross-device sync would never work.
+    const asUserEdit = (setter) => (value) => {
+        markLocalEdit();
+        setter(value);
+    };
+    const setCardsEdited = asUserEdit(setCards);
+    const setFundsEdited = asUserEdit(setFunds);
+    const setOthersEdited = asUserEdit(setOthers);
+    const setInvestmentsEdited = asUserEdit(setInvestments);
+    const setIncomesEdited = asUserEdit(setIncomes);
+    const setEventsEdited = asUserEdit(setEvents);
+    const setHistoryEdited = asUserEdit(setHistory);
+    const setCurrencyEdited = asUserEdit(setCurrency);
+    const setLegacyGoldGramsEdited = asUserEdit(setLegacyGoldGrams);
 
     const ratesReady = Boolean(storedFx?.rates);
     const ratesFetchedAt = storedFx?.fetchedAt || null;
@@ -210,44 +277,85 @@ export default function useFinanceData(session) {
         }
     }, [rawInvestments, legacyGoldGrams, setLegacyGoldGrams]);
 
-    // Sync from Supabase on Login
+    // Hydrate from Supabase once per signed-in user.
+    //
+    // This used to be keyed on the whole `session` object, and App.jsx replaces that object
+    // on every auth event supabase-js emits — INITIAL_SESSION at startup, SIGNED_IN when the
+    // tab regains visibility, TOKEN_REFRESHED on a timer. Each one re-ran this fetch and
+    // blindly overwrote local state (and, through useLocalStorage, localStorage) with the
+    // cloud row. That is what made freshly typed numbers disappear on returning to a tab.
     useEffect(() => {
-        if (!session?.user?.id || session?.isDemo) return;
+        if (!userId || isDemo) {
+            // Demo and signed-out both stay local-only. Clearing the marker means signing
+            // back into a real account still hydrates.
+            hydratedFor.current = null;
+            setSyncState('idle');
+            setHydrated(true);
+            return;
+        }
+        if (hydratedFor.current === userId) return;
+        hydratedFor.current = userId;
+
+        setHydrated(false);
+        seedLocalEditStamp(prefix);
+        setSyncState('loading');
 
         const fetchData = async () => {
             const { data, error } = await supabase
                 .from('user_data')
                 .select('*')
-                .eq('user_id', session.user.id)
+                .eq('user_id', userId)
                 .single();
 
             if (data && !error) {
-                const extendedData = data.extended_data || {};
+                const cloudUpdatedAt = Date.parse(data.updated_at) || 0;
+                const localTouchedAt = readLocalEditStamp(prefix);
 
-                // Cloud wins if it exists, while old records receive new defaults.
-                // The cloud amounts were typed under the cloud record's currency, so that —
-                // not the local currency state — is the right fallback for unstamped rows.
-                const cloudCurrency = data.currency || 'TRY';
-                setCards(normalizeCards(data.cards, cloudCurrency));
-                setFunds(normalizeFunds(data.funds, cloudCurrency));
-                setOthers(normalizeOthers(data.others, cloudCurrency));
-                setCurrency(data.currency || 'TRY');
-                setHistory(Array.isArray(data.history) ? data.history : []);
-                setLegacyGoldGrams(data.gold_grams || 0);
-                setInvestments(normalizeInvestments(extendedData.investments, data.gold_grams));
-                setIncomes(normalizeIncomes(extendedData.incomes));
-                setEvents(normalizeEvents(extendedData.events));
-                console.log("Cloud sync complete: Data loaded from Supabase");
+                if (cloudUpdatedAt >= localTouchedAt) {
+                    const extendedData = data.extended_data || {};
+
+                    // Cloud wins, while old records receive new defaults. The cloud amounts
+                    // were typed under the cloud record's currency, so that — not the local
+                    // currency state — is the right fallback for unstamped rows.
+                    const cloudCurrency = data.currency || 'TRY';
+                    setCards(normalizeCards(data.cards, cloudCurrency));
+                    setFunds(normalizeFunds(data.funds, cloudCurrency));
+                    setOthers(normalizeOthers(data.others, cloudCurrency));
+                    setCurrency(cloudCurrency);
+                    setHistory(Array.isArray(data.history) ? data.history : []);
+                    setLegacyGoldGrams(data.gold_grams || 0);
+                    setInvestments(normalizeInvestments(extendedData.investments, data.gold_grams));
+                    setIncomes(normalizeIncomes(extendedData.incomes));
+                    setEvents(normalizeEvents(extendedData.events));
+                    console.log('Cloud sync complete: data loaded from Supabase');
+                } else {
+                    // Edits made here are newer than anything in the cloud — most likely they
+                    // never pushed. Keep them; the debounced push below sends them up.
+                    console.log('Cloud sync: local edits are newer than the cloud record, keeping local');
+                }
+
+                setSyncError(null);
+                setLastSyncedAt(Date.now());
+                setSyncState('ready');
             } else if (error && error.code === 'PGRST116') {
+                // No row for this user yet — seed it from local.
                 await pushToCloud();
-                console.log("Cloud initialized: Local data pushed to Supabase");
+                console.log('Cloud initialized: local data pushed to Supabase');
+            } else if (error) {
+                // Offline or a real failure. Local stays authoritative and the push below is
+                // still allowed to retry, so a transient outage doesn't stop saving.
+                console.error('Cloud sync failed:', error);
+                setSyncError(error.message || 'Could not reach the cloud');
+                setSyncState('error');
             }
+
+            setHydrated(true);
         };
 
         fetchData();
-    // Local edits sync through the debounced cloud effect below; this fetch is session-scoped.
+    // The setters are stable; pushToCloud is intentionally read from this render's closure.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [session]);
+    }, [userId, isDemo, prefix]);
 
     // Fetch Market Data (Gold & FX)
     useEffect(() => {
@@ -314,13 +422,18 @@ export default function useFinanceData(session) {
     }, [convertCurrencyAmount, goldPricePerGram]);
 
     // Push to Supabase on changes (throttled)
+    // NOTE: `extended_data` must exist as a jsonb column on public.user_data. Postgres rejects
+    // the whole upsert if any field in the payload has no column, so a missing column here
+    // means nothing saves at all — not just investments/incomes/events. That is exactly what
+    // happened after the redesign added this field. The fix is:
+    //   alter table public.user_data add column if not exists extended_data jsonb default '{}'::jsonb;
     const pushToCloud = useCallback(async () => {
-        if (!session?.user?.id || session?.isDemo) return;
+        if (!userId || isDemo) return;
 
         const normalizedInvestments = normalizeInvestments(rawInvestments, legacyGoldGrams);
         const legacyGold = numericValue(normalizedInvestments.find(item => item.type === 'gold')?.amount);
         const payload = {
-            user_id: session.user.id,
+            user_id: userId,
             cards: normalizeCards(rawCards, currency),
             funds: normalizeFunds(rawFunds, currency),
             others: normalizeOthers(rawOthers, currency),
@@ -336,33 +449,51 @@ export default function useFinanceData(session) {
             updated_at: new Date().toISOString()
         };
 
+        setSyncState('saving');
+
         const { error } = await supabase
             .from('user_data')
             .upsert(payload, { onConflict: 'user_id' });
 
-        if (error) console.error("Cloud push failed:", error);
-    }, [session, rawCards, rawFunds, rawOthers, currency, historyList, rawInvestments, rawIncomes, rawEvents, legacyGoldGrams]);
+        if (error) {
+            console.error('Cloud push failed:', error);
+            setSyncError(error.message || 'Could not save to the cloud');
+            setSyncState('error');
+            return;
+        }
 
-    // Track changes and push
+        setSyncError(null);
+        setLastSyncedAt(Date.now());
+        setSyncState('ready');
+    }, [userId, isDemo, rawCards, rawFunds, rawOthers, currency, historyList, rawInvestments, rawIncomes, rawEvents, legacyGoldGrams]);
+
+    // Track changes and push. `hydrated` gates it so the first push can never land before the
+    // cloud row has been read. syncState is deliberately NOT a dependency — it changes on
+    // every push, and depending on it would reschedule the timer forever.
     useEffect(() => {
+        if (!userId || isDemo || !hydrated) return undefined;
+
         const timer = setTimeout(() => {
             pushToCloud();
-        }, 2000); // 2 second debounce
+        }, 1200); // sits just behind the ~1s field auto-commit
 
         return () => clearTimeout(timer);
-    }, [rawCards, rawFunds, rawOthers, currency, history, rawInvestments, rawIncomes, rawEvents, legacyGoldGrams, pushToCloud]);
+    }, [userId, isDemo, hydrated, rawCards, rawFunds, rawOthers, currency, historyList, rawInvestments, rawIncomes, rawEvents, legacyGoldGrams, pushToCloud]);
 
     const toggleCurrency = () => {
         const currencies = ['TRY', 'UAH', 'EUR', 'USD'];
         const currentIndex = currencies.indexOf(currency);
         const nextIndex = (currentIndex + 1) % currencies.length;
-        setCurrency(currencies[nextIndex]);
+        setCurrencyEdited(currencies[nextIndex]);
     };
 
     // CRUD for Cards
     // Accepts an optional overrides object so callers (e.g. the Add-card dialog in Settings)
     // can supply real values instead of the blank template.
-    const addCard = (overrides = {}) => setCards([...cards, {
+    // Every mutation below takes the updater form and re-normalizes `prev` rather than closing
+    // over the arrays built during render. Two commits landing in the same tick — which is now
+    // routine, since fields auto-commit on a timer — would otherwise silently clobber each other.
+    const addCard = (overrides = {}) => setCardsEdited(prev => [...normalizeCards(prev, currency), {
         id: generateUUID(),
         name: 'New Card',
         limit: 0,
@@ -373,27 +504,34 @@ export default function useFinanceData(session) {
         ...overrides
     }]);
     const updateCard = (id, field, value) => {
-        setCards(cards.map(card => card.id === id ? { ...card, [field]: value } : card));
+        setCardsEdited(prev => normalizeCards(prev, currency).map(card => (
+            card.id === id ? { ...card, [field]: value } : card
+        )));
     };
     const removeCard = (id) => {
         if (window.confirm('Delete this card?')) {
-            setCards(cards.filter(card => card.id !== id));
+            setCardsEdited(prev => normalizeCards(prev, currency).filter(card => card.id !== id));
         }
     };
 
     // CRUD for Funds
-    const addFund = () => setFunds([...funds, { id: generateUUID(), name: 'New Account', amount: 0, currency }]);
+    const addFund = () => setFundsEdited(prev => [
+        ...normalizeFunds(prev, currency),
+        { id: generateUUID(), name: 'New Account', amount: 0, currency }
+    ]);
     const updateFund = (id, field, value) => {
-        setFunds(funds.map(fund => fund.id === id ? { ...fund, [field]: value } : fund));
+        setFundsEdited(prev => normalizeFunds(prev, currency).map(fund => (
+            fund.id === id ? { ...fund, [field]: value } : fund
+        )));
     };
     const removeFund = (id) => {
         if (window.confirm('Delete this account?')) {
-            setFunds(funds.filter(fund => fund.id !== id));
+            setFundsEdited(prev => normalizeFunds(prev, currency).filter(fund => fund.id !== id));
         }
     };
 
     // CRUD for Others
-    const addOther = () => setOthers([...others, {
+    const addOther = () => setOthersEdited(prev => [...normalizeOthers(prev, currency), {
         id: generateUUID(),
         name: 'New Payment',
         amount: 0,
@@ -401,17 +539,19 @@ export default function useFinanceData(session) {
         currency
     }]);
     const updateOther = (id, field, value) => {
-        setOthers(others.map(other => other.id === id ? { ...other, [field]: value } : other));
+        setOthersEdited(prev => normalizeOthers(prev, currency).map(other => (
+            other.id === id ? { ...other, [field]: value } : other
+        )));
     };
     const removeOther = (id) => {
         if (window.confirm('Delete this payment?')) {
-            setOthers(others.filter(other => other.id !== id));
+            setOthersEdited(prev => normalizeOthers(prev, currency).filter(other => other.id !== id));
         }
     };
 
     // CRUD for Investments
-    const addInvestment = (type = 'custom', amount = 0) => setInvestments([
-        ...investments,
+    const addInvestment = (type = 'custom', amount = 0) => setInvestmentsEdited(prev => [
+        ...normalizeInvestments(prev, legacyGoldGrams),
         {
             id: generateUUID(),
             type,
@@ -420,29 +560,34 @@ export default function useFinanceData(session) {
         }
     ]);
     const updateInvestment = (id, field, value) => {
-        setInvestments(investments.map(investment => (
+        setInvestmentsEdited(prev => normalizeInvestments(prev, legacyGoldGrams).map(investment => (
             investment.id === id ? { ...investment, [field]: value } : investment
         )));
     };
     const removeInvestment = (id) => {
         if (window.confirm('Delete this investment?')) {
-            setInvestments(investments.filter(investment => investment.id !== id));
+            setInvestmentsEdited(prev => (
+                normalizeInvestments(prev, legacyGoldGrams).filter(investment => investment.id !== id)
+            ));
         }
     };
-    const setGoldGrams = useCallback((value) => {
-        const nextAmount = Math.max(0, numericValue(typeof value === 'function' ? value(goldGrams) : value));
+    // Accepts a value or an updater, like a setState. The updater is handed the gold amount
+    // read from `prev`, not the one captured at render, so rapid buy/sell taps compose.
+    const setGoldGrams = (value) => {
+        setInvestmentsEdited(prev => {
+            const list = normalizeInvestments(prev, legacyGoldGrams);
+            const gold = list.find(investment => investment.type === 'gold');
+            const current = numericValue(gold?.amount);
+            const nextAmount = Math.max(0, numericValue(typeof value === 'function' ? value(current) : value));
 
-        if (primaryGold) {
-            setInvestments(investments.map(investment => (
-                investment.id === primaryGold.id ? { ...investment, amount: nextAmount } : investment
-            )));
-        } else {
-            setInvestments([createGoldInvestment(nextAmount), ...investments]);
-        }
-    }, [goldGrams, investments, primaryGold, setInvestments]);
+            return gold
+                ? list.map(investment => investment.id === gold.id ? { ...investment, amount: nextAmount } : investment)
+                : [createGoldInvestment(nextAmount), ...list];
+        });
+    };
 
     // CRUD for Income
-    const addIncome = () => setIncomes([...incomes, {
+    const addIncome = () => setIncomesEdited(prev => [...normalizeIncomes(prev), {
         id: generateUUID(),
         name: 'New Income',
         amount: 0,
@@ -453,16 +598,18 @@ export default function useFinanceData(session) {
         endDate: null
     }]);
     const updateIncome = (id, field, value) => {
-        setIncomes(incomes.map(income => income.id === id ? { ...income, [field]: value } : income));
+        setIncomesEdited(prev => normalizeIncomes(prev).map(income => (
+            income.id === id ? { ...income, [field]: value } : income
+        )));
     };
     const removeIncome = (id) => {
         if (window.confirm('Delete this income?')) {
-            setIncomes(incomes.filter(income => income.id !== id));
+            setIncomesEdited(prev => normalizeIncomes(prev).filter(income => income.id !== id));
         }
     };
 
     // CRUD for Planner Events
-    const addEvent = () => setEvents([...events, {
+    const addEvent = () => setEventsEdited(prev => [...normalizeEvents(prev), {
         id: generateUUID(),
         name: 'New Event',
         date: new Date().toISOString().split('T')[0],
@@ -470,11 +617,13 @@ export default function useFinanceData(session) {
         amount: 0
     }]);
     const updateEvent = (id, field, value) => {
-        setEvents(events.map(event => event.id === id ? { ...event, [field]: value } : event));
+        setEventsEdited(prev => normalizeEvents(prev).map(event => (
+            event.id === id ? { ...event, [field]: value } : event
+        )));
     };
     const removeEvent = (id) => {
         if (window.confirm('Delete this event?')) {
-            setEvents(events.filter(event => event.id !== id));
+            setEventsEdited(prev => normalizeEvents(prev).filter(event => event.id !== id));
         }
     };
 
@@ -526,10 +675,12 @@ export default function useFinanceData(session) {
             netBasis: 'cash',
             currency
         };
-        setHistory([snapshot, ...historyList]);
+        setHistoryEdited(prev => [snapshot, ...(Array.isArray(prev) ? prev : [])]);
     };
 
-    const deleteSnapshot = (id) => setHistory(historyList.filter(snapshot => snapshot.id !== id));
+    const deleteSnapshot = (id) => setHistoryEdited(prev => (
+        (Array.isArray(prev) ? prev : []).filter(snapshot => snapshot.id !== id)
+    ));
 
     // Advanced Stats. All of these compare against past snapshots, so they run on the cash
     // position (see utils/snapshots.js): snapshots in another currency, or too old to place
@@ -591,15 +742,15 @@ export default function useFinanceData(session) {
             // The backup's own currency is the fallback for rows saved before per-item
             // currency existed — not the currency state, which setCurrency updates below.
             const backupCurrency = data.currency || 'TRY';
-            setCards(normalizeCards(data.cards, backupCurrency));
-            setFunds(normalizeFunds(data.funds, backupCurrency));
-            setOthers(normalizeOthers(data.others, backupCurrency));
-            setInvestments(normalizeInvestments(data.investments, data.goldGrams));
-            setIncomes(normalizeIncomes(data.incomes));
-            setEvents(normalizeEvents(data.events));
-            setCurrency(data.currency || 'TRY');
-            setLegacyGoldGrams(data.goldGrams || 0);
-            setHistory(Array.isArray(data.history) ? data.history : []);
+            setCardsEdited(normalizeCards(data.cards, backupCurrency));
+            setFundsEdited(normalizeFunds(data.funds, backupCurrency));
+            setOthersEdited(normalizeOthers(data.others, backupCurrency));
+            setInvestmentsEdited(normalizeInvestments(data.investments, data.goldGrams));
+            setIncomesEdited(normalizeIncomes(data.incomes));
+            setEventsEdited(normalizeEvents(data.events));
+            setCurrencyEdited(data.currency || 'TRY');
+            setLegacyGoldGramsEdited(data.goldGrams || 0);
+            setHistoryEdited(Array.isArray(data.history) ? data.history : []);
 
             console.log("Backup restored successfully");
             return true;
@@ -612,8 +763,9 @@ export default function useFinanceData(session) {
 
     return {
         cards, funds, others, investments, incomes, events,
-        currency, toggleCurrency, setCurrency,
+        currency, toggleCurrency, setCurrency: setCurrencyEdited,
         history: historyList,
+        syncState, syncError, lastSyncedAt,
         goldGrams,
         setGoldGrams,
         goldPricePerGram,

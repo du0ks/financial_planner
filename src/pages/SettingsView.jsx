@@ -3,6 +3,7 @@ import { Plus, Banknote, Database, Download, Upload, AlertTriangle, Cloud, User,
 import { supabase } from '../utils/supabase';
 import { CURRENCY_SYMBOLS } from '../utils/format';
 import AddCardDialog from '../components/AddCardDialog';
+import SyncStatus from '../components/SyncStatus';
 
 // Neon Grid design tokens (design_handoff_neon_grid/README.md).
 const CYAN = '#7ee9ff';
@@ -17,7 +18,7 @@ const ACCENT = { cyan: CYAN, magenta: MAGENTA, amber: AMBER };
 const CURRENCIES = ['TRY', 'UAH', 'EUR', 'USD'];
 
 export default function SettingsView({ data, session }) {
-    const { addCard, currency, setCurrency, exportBackup, importBackup } = data;
+    const { addCard, currency, setCurrency, exportBackup, importBackup, syncState, syncError, lastSyncedAt } = data;
     const userEmail = session?.user?.email;
     const isDemo = Boolean(session?.isDemo);
 
@@ -153,15 +154,24 @@ export default function SettingsView({ data, session }) {
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6">
                 <PanelCard icon={Cloud} accent="cyan" title="Saving to the cloud">
                     <p className="text-[15px]" style={{ color: TEXT_MUTED }}>
-                        Your numbers are on your private account.
+                        {isDemo
+                            ? 'Demo data stays in this browser and is never sent anywhere.'
+                            : 'Your numbers are on your private account.'}
                     </p>
-                    <div
-                        className="mt-4 inline-flex h-[30px] w-fit items-center gap-2 border px-3 font-mono text-[12px] uppercase tracking-[0.12em]"
-                        style={{ borderColor: CYAN, color: CYAN }}
-                    >
-                        <span className="h-2 w-2" style={{ backgroundColor: CYAN }} />
-                        On
+                    {/* This used to be a hardcoded "On" chip while every save was silently
+                        failing. It now reports the real state. */}
+                    <div className="mt-4">
+                        <SyncStatus syncState={syncState} lastSyncedAt={lastSyncedAt} />
                     </div>
+                    {syncState === 'error' && (
+                        <p className="mt-3 flex items-start gap-2 text-[13px] leading-relaxed" style={{ color: AMBER }}>
+                            <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                            <span>
+                                Your last change is saved on this device but did not reach the cloud.
+                                {syncError ? ` (${syncError})` : ''}
+                            </span>
+                        </p>
+                    )}
                 </PanelCard>
 
                 <PanelCard icon={User} accent="cyan" title={userEmail}>

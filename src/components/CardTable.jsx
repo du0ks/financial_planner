@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { CreditCard, Trash2 } from 'lucide-react';
 import { formatMoney, parseCloudNumber, CURRENCY_SYMBOLS } from '../utils/format';
+import useDraftField from '../hooks/useDraftField';
 
 // Neon Grid design tokens (design_handoff_neon_grid/README.md).
 const CYAN = '#7ee9ff';
@@ -157,8 +158,8 @@ function CardPanel({ card, updateCard, removeCard, currency, convertCurrencyAmou
 }
 
 function CardField({ label, value, displayValue, symbol, onCommit, textColor, borderColor, bgColor, readOnly, bold }) {
-    const [local, setLocal] = useState(value);
-    useEffect(() => { setLocal(value); }, [value]);
+    // Auto-commits a second after typing stops, and flushes on unmount — see useDraftField.
+    const { draft, onChange, flush } = useDraftField(value, onCommit);
 
     const border = borderColor || 'rgba(255,255,255,0.22)';
 
@@ -185,9 +186,9 @@ function CardField({ label, value, displayValue, symbol, onCommit, textColor, bo
                     <input
                         type="text"
                         inputMode="decimal"
-                        value={local}
-                        onChange={(e) => setLocal(e.target.value)}
-                        onBlur={() => onCommit(local)}
+                        value={draft}
+                        onChange={(e) => onChange(e.target.value)}
+                        onBlur={flush}
                         className="w-full flex-1 bg-transparent px-2 text-right font-mono text-[17px] outline-none"
                         style={{ color: textColor, fontWeight: bold ? 600 : 400 }}
                     />

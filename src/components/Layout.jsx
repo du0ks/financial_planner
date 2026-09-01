@@ -3,6 +3,7 @@ import { Wallet, User, LogOut, ChevronsUpDown, Coins, LineChart, Settings as Set
 import { supabase } from '../utils/supabase';
 import { CURRENCY_SYMBOLS } from '../utils/format';
 import InstallHint from './InstallHint';
+import SyncStatus from './SyncStatus';
 
 // Neon Grid design tokens (design_handoff_neon_grid/README.md).
 const CYAN = '#7ee9ff';
@@ -27,7 +28,7 @@ const NAV_TABS = [
     { key: 'settings', desktopLabel: 'Settings', mobileLabel: 'You', mobileIcon: SettingsIcon },
 ];
 
-export default function Layout({ children, activeTab, onTabChange, currency, userEmail }) {
+export default function Layout({ children, activeTab, onTabChange, currency, userEmail, syncState, lastSyncedAt }) {
     const handleLogout = () => supabase.auth.signOut();
     const currencySymbol = CURRENCY_SYMBOLS[currency] || '';
 
@@ -52,6 +53,9 @@ export default function Layout({ children, activeTab, onTabChange, currency, use
                     </div>
 
                     <div className="flex items-center gap-3">
+                        {/* A failed cloud save has to be visible without opening Settings. */}
+                        <SyncStatus syncState={syncState} lastSyncedAt={lastSyncedAt} compact />
+
                         <div className="h-[42px] flex items-center gap-2 px-3 border border-white/20">
                             <User size={15} style={{ color: TEXT_DIM }} />
                             <span className="font-mono text-[14px]" style={{ color: TEXT_DIM }}>{userEmail}</span>
@@ -109,11 +113,15 @@ export default function Layout({ children, activeTab, onTabChange, currency, use
                         </span>
                     </div>
 
-                    <div
-                        className="h-[46px] flex items-center gap-1.5 px-3 border font-mono text-[13px] font-semibold"
-                        style={{ borderColor: CYAN, backgroundColor: 'rgba(126,233,255,0.12)', color: CYAN }}
-                    >
-                        <span>{currencySymbol} {currency}</span>
+                    <div className="flex items-center gap-2.5">
+                        <SyncStatus syncState={syncState} lastSyncedAt={lastSyncedAt} compact />
+
+                        <div
+                            className="h-[46px] flex items-center gap-1.5 px-3 border font-mono text-[13px] font-semibold"
+                            style={{ borderColor: CYAN, backgroundColor: 'rgba(126,233,255,0.12)', color: CYAN }}
+                        >
+                            <span>{currencySymbol} {currency}</span>
+                        </div>
                     </div>
                 </div>
 

@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Trash2, Landmark, PiggyBank, Banknote, Plus } from 'lucide-react';
 import { formatMoney, parseCloudNumber, CURRENCY_SYMBOLS } from '../utils/format';
 import { CurrencySelect } from './CardTable';
+import useDraftField from '../hooks/useDraftField';
 
 // Neon Grid design tokens (design_handoff_neon_grid/README.md). This panel is now fully
 // self-contained (header + rows + footer) — Dashboard.jsx just places it in a 2-col grid
@@ -103,8 +104,9 @@ function FundRow({ fund, updateFund, removeFund, currency, convertCurrencyAmount
 }
 
 export function AmountField({ value, symbol, onCommit, color = '#ffffff', hint = null }) {
-    const [local, setLocal] = useState(value);
-    useEffect(() => { setLocal(value); }, [value]);
+    // Commits on its own a second after you stop typing, and again if the field is unmounted
+    // while still focused (switching tabs) — blur alone used to drop those edits.
+    const { draft, onChange, flush } = useDraftField(value, onCommit);
 
     return (
         <div className="w-[110px] shrink-0 md:w-[118px]">
@@ -113,9 +115,9 @@ export function AmountField({ value, symbol, onCommit, color = '#ffffff', hint =
                 <input
                     type="text"
                     inputMode="decimal"
-                    value={local}
-                    onChange={(e) => setLocal(e.target.value)}
-                    onBlur={() => onCommit(local)}
+                    value={draft}
+                    onChange={(e) => onChange(e.target.value)}
+                    onBlur={flush}
                     className="w-full min-w-0 bg-transparent text-right font-mono text-[16px] font-medium outline-none md:text-[21px]"
                     style={{ color }}
                 />

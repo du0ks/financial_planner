@@ -101,6 +101,8 @@ function App() {
                 currency={financeData.currency}
                 onToggleCurrency={financeData.toggleCurrency}
                 userEmail={session.user.email}
+                syncState={financeData.syncState}
+                lastSyncedAt={financeData.lastSyncedAt}
             >
                 {renderContent()}
             </Layout>
