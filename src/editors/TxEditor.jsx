@@ -7,6 +7,7 @@ import { addDays } from '../lib/dates';
 import { minorToInput, parseMoney } from '../lib/money';
 import { AmountInput, Chips, DateInput, Field, Segmented, Sheet, SheetActions, Select, TextInput, Toggle, toast } from '../ui/kit';
 import { accountIcon, categoryIcon } from '../ui/icons';
+import Equivalents from '../ui/Equivalents';
 import S from '../i18n/strings';
 
 const LAST_ACCOUNT_KEY = 'pv5-last-account:';
@@ -35,7 +36,7 @@ export default function TxEditor({ tx, preset = {}, onSaved, onClose }) {
     const [currency, setCurrency] = useState(base.currency || settings.spendingCurrency);
     const [amountText, setAmountText] = useState(base.amount ? minorToInput(base.amount, base.currency || settings.spendingCurrency) : '');
     const [categoryId, setCategoryId] = useState(base.categoryId || null);
-    const usable = accounts.filter((a) => a.kind !== 'investment' || type === 'transfer');
+    const usable = accounts.filter((a) => !['investment', 'other'].includes(a.kind) || type === 'transfer');
     const defaultAccount = () => {
         if ('accountId' in base) return base.accountId;
         const last = readLast(type);
@@ -139,6 +140,9 @@ export default function TxEditor({ tx, preset = {}, onSaved, onClose }) {
                         />
                     )}
                 </Field>
+                {type !== 'transfer' && txCurrency !== settings.displayCurrency && (
+                    <Equivalents minor={parseMoney(amountText, txCurrency) || 0} currency={txCurrency} date={date} />
+                )}
 
                 {type !== 'transfer' && (
                     <Field label={S.common.category}>

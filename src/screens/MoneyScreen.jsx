@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Camera, CreditCard, HandCoins, Plus, Repeat, AlertTriangle } from 'lucide-react';
 import { useModel } from '../state/hooks';
 import { saveSnapshot } from '../state/actions';
@@ -8,6 +7,7 @@ import { effectiveAnnualRate, effectiveMonthlyRate, monthlyInterest } from '../l
 import { pendingOccurrences } from '../lib/ledger';
 import { debtAmount } from '../lib/model';
 import { formatMoney, formatPercent } from '../lib/money';
+import { formatGrams } from '../lib/gold';
 import { Bar, Button, DualMoney, Empty, Money, Panel, Row, cx, toast } from '../ui/kit';
 import { accountIcon } from '../ui/icons';
 import { openSheet } from '../ui/sheets';
@@ -19,6 +19,7 @@ export default function MoneyScreen() {
         <div className="flex flex-col gap-6">
             <Hero model={model} />
             <Waiting model={model} />
+            <Assets model={model} />
             <Cards model={model} />
             <Accounts model={model} />
             <Debts model={model} />
@@ -28,12 +29,12 @@ export default function MoneyScreen() {
 }
 
 function Hero({ model }) {
-    const [open, setOpen] = useState(false);
-    const { totals, display, bills, gold } = model;
-    const line = (label, minor, tone, sign = '') => (
-        <div className="flex items-baseline justify-between gap-4 py-1.5">
-            <span className="text-[14px] text-muted">{label}</span>
-            <span className={cx('tabular font-mono text-[15px]', tone)}>{sign}{formatMoney(Math.abs(minor), display, { decimals: 'never' })}</span>
+    const { totals, display } = model;
+    const figure = (label, minor, explain, tone) => (
+        <div className="min-w-0">
+            <p className="font-mono text-[12px] uppercase tracking-[0.12em] text-muted">{label}</p>
+            <p className={cx('tabular mt-1 font-mono text-[22px] font-semibold md:text-[30px]', tone)}>{formatMoney(minor, display, { decimals: 'never' })}</p>
+            <p className="mt-1 text-[13px] leading-snug text-dim">{explain}</p>
         </div>
     );
     return (
@@ -46,10 +47,9 @@ function Hero({ model }) {
                     </p>
                     <p className="mt-4 max-w-xl text-[15px] leading-snug text-body">{S.money.heroExplain}</p>
                 </div>
-                <div className="shrink-0 md:text-right">
-                    <p className="font-mono text-[12px] uppercase tracking-[0.12em] text-muted">{S.money.netWorth}</p>
-                    <p className="tabular mt-1 font-mono text-[28px] font-semibold text-neon md:text-[34px]">{formatMoney(totals.netWorth, display, { decimals: 'never' })}</p>
-                    <p className="mt-1 max-w-[280px] text-[13px] leading-snug text-dim md:ml-auto">{S.money.netWorthExplain}</p>
+                <div className="grid shrink-0 grid-cols-2 gap-4 md:max-w-[480px] md:gap-8 md:text-right">
+                    {figure(S.money.netWorth, totals.netWorth, S.money.netWorthExplain, 'text-neon')}
+                    {figure(S.money.totalAssets, totals.totalAssets, S.money.totalAssetsExplain, 'text-white')}
                 </div>
             </div>
 
@@ -57,21 +57,94 @@ function Hero({ model }) {
                 <p className="mt-4 flex items-start gap-2 text-[14px] text-gold"><AlertTriangle size={16} className="mt-0.5 shrink-0" />{S.common.ratesMissing(model.missing.join(', '))}</p>
             )}
 
-            <button type="button" onClick={() => setOpen(!open)} className="mt-5 font-mono text-[12px] uppercase tracking-[0.1em] text-neon">
-                {open ? S.money.hideBreakdown : S.money.breakdown}
-            </button>
-            {open && (
-                <div className="mt-3 max-w-md border-t border-line pt-2">
-                    {line(S.money.lines.cash, totals.availableCash, 'text-white')}
-                    {gold.availableMg > 0 && line(S.money.lines.gold, gold.availableValue, 'text-gold', '+ ')}
-                    {line(S.money.lines.cards, totals.totalCardDebt, 'text-hot', '− ')}
-                    {line(S.money.lines.bills(bills.payday ? formatDate(bills.payday) : null), bills.total, 'text-hot', '− ')}
-                    {totals.iOweCertain > 0 && line(S.money.lines.debts, totals.iOweCertain, 'text-hot', '− ')}
-                    <div className="mt-1 border-t border-line pt-1">{line(S.money.lines.result, totals.availableNow, 'text-white font-semibold')}</div>
-                    {totals.iOwePossible > 0 && line(S.money.lines.possible, totals.iOwePossible, 'text-dim')}
-                </div>
-            )}
+            <a href="#assets" className="mt-5 inline-block font-mono text-[12px] uppercase tracking-[0.1em] text-neon">{S.money.howTheyConnect} ↓</a>
         </section>
+    );
+}
+
+const GROUP_ADD = {
+    spendable: () => openSheet('account'),
+    goldTouchable: () => openSheet('gold', { touchable: true }),
+    goldUntouchable: () => openSheet('gold', { touchable: false }),
+    investments: () => openSheet('account', { kind: 'investment' }),
+    other: () => openSheet('account', { kind: 'other' }),
+};
+
+/** Everything owned, before debt, grouped; then the chain down to net worth and available now. */
+function Assets({ model }) {
+    const { assets, chain, display, bills, possibleDebts } = model;
+    const open = (item) => {
+        if (item.account) return () => openSheet(item.account.kind === 'credit' ? 'card' : 'account', item.account.kind === 'credit' ? { card: item.account } : { account: item.account });
+        if (item.tx) return () => openSheet('debt', { tx: item.tx });
+        return undefined;
+    };
+    const subtitle = (item) => {
+        if (item.portion) return null;
+        if (item.tx) return S.money.owedBy(item.owedBy);
+        if (item.account?.kind === 'credit') return S.money.cardCredit;
+        return S.kinds[item.kind];
+    };
+    return (
+        <Panel id="assets" title={S.money.assetsTitle} subtitle={S.money.assetsExplain(display)} bare>
+            {assets.groups.map((group) => (
+                <div key={group.key} className="border-t border-line first:border-t-0">
+                    <div className={cx('flex items-baseline justify-between gap-3 px-4 pb-1 pt-4 md:px-5', group.key.startsWith('gold') && 'text-gold')}>
+                        <h3 className={cx('font-mono text-[12px] font-semibold uppercase tracking-[0.12em]', group.key.startsWith('gold') ? 'text-gold' : 'text-muted')}>{S.money.groups[group.key]}</h3>
+                        <Money minor={group.total} currency={display} decimals="never" className="text-[16px] font-semibold text-white" />
+                    </div>
+                    {group.items.length === 0 ? (
+                        <div className="flex items-center justify-between gap-3 px-4 pb-3 md:px-5">
+                            <span className="text-[13px] text-dim">{S.money.groupEmpty}</span>
+                            <Button size="sm" variant="ghost" icon={Plus} onClick={GROUP_ADD[group.key]}>{S.money.groupAdd[group.key]}</Button>
+                        </div>
+                    ) : group.items.map((item) => (
+                        <Row
+                            key={item.id}
+                            className="!border-t-0 !py-2"
+                            title={item.name}
+                            subtitle={subtitle(item)}
+                            onClick={open(item)}
+                            right={item.portion ? (
+                                <span className="flex flex-col items-end leading-tight">
+                                    <span className="tabular font-mono text-[17px] text-gold">{formatGrams(item.mg)}</span>
+                                    <span className="tabular font-mono text-[12px] text-dim">{S.common.approx(formatMoney(item.display, display, { decimals: 'never' }))}</span>
+                                </span>
+                            ) : (
+                                <DualMoney minor={item.minor} currency={item.currency} display={display} displayMinor={item.display} tone={item.minor < 0 ? 'hot' : null} />
+                            )}
+                        />
+                    ))}
+                </div>
+            ))}
+
+            <div className="border-t border-line-strong px-4 py-4 md:px-5">
+                <h3 className="mb-2 font-display text-[17px] font-semibold text-white">{S.money.chainTitle}</h3>
+                <div className="max-w-xl">
+                    {chain.map((step) => {
+                        const label = step.key === 'bills' ? S.money.chain.bills(bills.payday ? formatDate(bills.payday) : null) : S.money.chain[step.key];
+                        return (
+                            <div key={step.key} className={cx('flex items-baseline justify-between gap-4', step.total ? 'mt-1 border-t border-line pt-2 pb-1' : 'py-1')}>
+                                <span className={cx('text-[14px]', step.total ? 'font-semibold text-white' : 'text-muted')}>{step.total ? '= ' : '− '}{label}</span>
+                                <span className={cx('tabular shrink-0 font-mono', step.total ? 'text-[16px] font-semibold' : 'text-[15px]', step.total ? (step.key === 'netWorth' ? 'text-neon' : step.minor < 0 ? 'text-hot' : 'text-white') : step.minor ? 'text-body' : 'text-dim')}>
+                                    {formatMoney(step.total ? step.minor : Math.abs(step.minor), display, { decimals: 'never' })}
+                                </span>
+                            </div>
+                        );
+                    })}
+                    {possibleDebts.length > 0 && (
+                        <div className="mt-3 border-t border-dashed border-line pt-2">
+                            <p className="font-mono text-[11px] uppercase tracking-[0.1em] text-dim">{S.money.possibleNote}</p>
+                            {possibleDebts.map((tx) => (
+                                <div key={tx.id} className="flex items-baseline justify-between gap-4 py-1">
+                                    <span className="text-[14px] text-dim">{tx.note || tx.debt.who || S.money.iOwe}</span>
+                                    <span className="tabular font-mono text-[14px] text-dim">{formatMoney(tx.display, display, { decimals: 'never' })}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </Panel>
     );
 }
 

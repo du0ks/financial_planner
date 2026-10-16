@@ -43,6 +43,21 @@ export function convertOrZero(minor, from, to, fx, missing) {
     return value;
 }
 
+/**
+ * An amount shown in other currencies: [{ code, minor, rate }] for each target that is not
+ * `from` and has a rate. `rate` is how many `code` one `from` buys, as a Big.
+ */
+export function equivalents(minor, from, targets, fx) {
+    const out = [];
+    for (const code of new Set(targets)) {
+        if (code === from) continue;
+        const rate = pairRate(from, code, fx);
+        if (rate === null) continue;
+        out.push({ code, minor: convertMinor(minor, from, code, fx), rate });
+    }
+    return out;
+}
+
 /** Gold spot price for one gram, in `currency`, as a Big. Needs rates.XAU (ounces per USD). */
 export function goldGramPrice(currency, fx) {
     const rates = fx?.rates || {};

@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeftRight, Coins, LogOut, CreditCard, Download, PiggyBank, Plus, Receipt, Repeat, ShoppingBag, Target, Upload, Wallet, X } from 'lucide-react';
+import { ArrowLeftRight, Coins, LogOut, CreditCard, Download, PiggyBank, Plus, Receipt, Repeat, ShoppingBag, Target, Upload, Wallet, X, ChevronLeft } from 'lucide-react';
 import { useModel, useStoreState } from '../state/hooks';
 import { setSetting } from '../state/actions';
 import { restore, syncNow } from '../state/store';
 import { supabase } from '../state/supabase';
 import { isDoc, list, normalizeDoc } from '../lib/doc';
 import { pairKey, pairRate } from '../lib/fx';
-import { allCurrencyCodes, currencyName, currencySymbol, formatNumber, parseDecimal, setNumberLocale } from '../lib/money';
-import { Button, Field, Panel, Row, Select, TextInput, cx, toast } from '../ui/kit';
+import { currencyChoices, currencyName, formatNumber, parseDecimal, setNumberLocale } from '../lib/money';
+import { Button, CurrencySelect, Field, Panel, Row, Select, TextInput, cx, toast } from '../ui/kit';
 import { categoryIcon } from '../ui/icons';
 import { openSheet } from '../ui/sheets';
 import SyncBadge from '../ui/SyncBadge';
@@ -79,14 +79,19 @@ function AddAnything() {
 function Currencies({ model }) {
     const { settings, accounts, doc } = model;
     const [adding, setAdding] = useState('');
-    const all = useMemo(() => allCurrencyCodes().filter((c) => !settings.currencies.includes(c)), [settings.currencies]);
+    const all = useMemo(() => currencyChoices(settings.currencies, model.market.rates).rest, [settings.currencies, model.market.rates]);
+    const moveEarlier = (index) => {
+        const next = [...settings.currencies];
+        [next[index - 1], next[index]] = [next[index], next[index - 1]];
+        setSetting('currencies', next);
+    };
     const inUse = (code) => accounts.some((a) => a.currency === code) || list(doc, 'tx').some((t) => t.currency === code) || list(doc, 'rules').some((r) => r.currency === code);
-    const option = (code) => ({ value: code, label: `${code} · ${currencySymbol(code)}` });
     return (
         <Panel title={S.settings.currencies} subtitle={S.settings.currenciesExplain}>
             <div className="flex flex-wrap gap-2">
-                {settings.currencies.map((code) => (
+                {settings.currencies.map((code, index) => (
                     <span key={code} className="inline-flex h-10 items-center gap-2 border border-line-strong pl-3 text-[14px] text-white">
+                        {index > 0 && <button type="button" aria-label={`${S.settings.moveEarlier} ${code}`} className="-ml-2 flex h-full w-7 items-center justify-center text-dim hover:text-neon" onClick={() => moveEarlier(index)}><ChevronLeft size={15} /></button>}
                         <span className="font-mono font-semibold">{code}</span>
                         <span className="text-dim">{currencyName(code)}</span>
                         {code !== settings.displayCurrency && !inUse(code) ? (
@@ -101,10 +106,10 @@ function Currencies({ model }) {
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3">
                 <Field label={S.settings.display}>
-                    <Select value={settings.displayCurrency} onChange={(v) => setSetting('displayCurrency', v)} options={settings.currencies.map(option)} />
+                    <CurrencySelect named value={settings.displayCurrency} onChange={(v) => setSetting('displayCurrency', v)} mine={settings.currencies} />
                 </Field>
                 <Field label={S.settings.spending}>
-                    <Select value={settings.spendingCurrency} onChange={(v) => setSetting('spendingCurrency', v)} options={settings.currencies.map(option)} />
+                    <CurrencySelect named value={settings.spendingCurrency} onChange={(v) => setSetting('spendingCurrency', v)} mine={settings.currencies} />
                 </Field>
             </div>
         </Panel>
@@ -136,7 +141,8 @@ function Rates({ model }) {
 
     return (
         <Panel title={S.settings.rates} subtitle={S.settings.ratesExplain(market.date)}>
-            {others.length === 0 && <p className="text-[14px] text-dim">—</p>}
+            <RateTable codes={settings.currencies} fx={fx} />
+            {others.length > 0 && <p className="mb-3 mt-5 text-[14px] leading-snug text-muted">{S.settings.overrideExplain(base)}</p>}
             <div className="flex flex-col gap-3">
                 {others.map((code) => {
                     const market = pairRate(code, base, { rates: fx.rates });
@@ -161,6 +167,34 @@ function Rates({ model }) {
                 })}
             </div>
         </Panel>
+    );
+}
+
+/** Live rates between the user's own currencies: each row is one unit of that currency. */
+function RateTable({ codes, fx }) {
+    if (codes.length < 2) return null;
+    return (
+        <div className="-mx-4 overflow-x-auto px-4">
+            <table className="w-full border-collapse text-[14px]">
+                <thead>
+                    <tr>
+                        <th className="pb-2 text-left font-mono text-[12px] font-semibold uppercase text-muted">1 ×</th>
+                        {codes.map((code) => <th key={code} className="pb-2 text-right font-mono text-[12px] font-semibold uppercase text-muted">{code}</th>)}
+                    </tr>
+                </thead>
+                <tbody>
+                    {codes.map((from) => (
+                        <tr key={from} className="border-t border-line">
+                            <td className="py-1.5 font-mono font-semibold text-white">{from}</td>
+                            {codes.map((to) => {
+                                const rate = from === to ? null : pairRate(from, to, fx);
+                                return <td key={to} className="tabular py-1.5 pl-2 text-right font-mono text-body">{from === to ? '·' : rate ? formatNumber(rate.toString(), rate.lt(1) ? 4 : 2) : '—'}</td>;
+                            })}
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
     );
 }
 

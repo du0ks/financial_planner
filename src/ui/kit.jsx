@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
 import { X } from 'lucide-react';
-import { formatMoney } from '../lib/money';
+import { currencyChoices, currencyName, formatMoney } from '../lib/money';
+import { useMarket } from '../state/market';
 import S from '../i18n/strings';
 
 // Shared building blocks. Every list row in the app is a button that opens an editor sheet
@@ -145,6 +146,26 @@ export function Select({ value, onChange, options, className, ...props }) {
     );
 }
 
+/**
+ * Currency dropdown: the user's own currencies first, then every other currency with a rate.
+ * `mine` is settings.currencies. `named` adds the full name to each option (for wide fields).
+ */
+export function CurrencySelect({ value, onChange, mine, named, className, ...props }) {
+    const { rates } = useMarket();
+    const { own, rest } = currencyChoices(mine, rates, value);
+    const label = (code) => (named ? `${code} · ${currencyName(code)}` : code);
+    return (
+        <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={S.common.currency} {...props} className={className ?? cx(INPUT, 'pr-8 font-mono')}>
+            <optgroup label={S.common.yourCurrencies}>
+                {own.map((code) => <option key={code} value={code}>{label(code)}</option>)}
+            </optgroup>
+            <optgroup label={S.common.allCurrencies}>
+                {rest.map((code) => <option key={code} value={code}>{named ? label(code) : `${code} · ${currencyName(code)}`}</option>)}
+            </optgroup>
+        </select>
+    );
+}
+
 /** Amount text box with its currency beside it. `value` is the raw text being typed. */
 export function AmountInput({ value, onChange, currency, onCurrencyChange, currencies, autoFocus, big, placeholder = '0', id, inputRef }) {
     return (
@@ -162,15 +183,13 @@ export function AmountInput({ value, onChange, currency, onCurrencyChange, curre
                 onChange={(e) => onChange(e.target.value)}
                 className={cx('tabular w-full min-w-0 flex-1 bg-transparent px-3 text-right font-mono text-white outline-none', big ? 'text-[30px] font-semibold' : 'text-[18px]')}
             />
-            {onCurrencyChange && currencies?.length > 1 ? (
-                <select
+            {onCurrencyChange ? (
+                <CurrencySelect
                     value={currency}
-                    onChange={(e) => onCurrencyChange(e.target.value)}
-                    aria-label={S.common.currency}
-                    className="border-l border-line-strong bg-raised px-2 font-mono text-[15px] font-semibold text-neon outline-none"
-                >
-                    {currencies.map((code) => <option key={code} value={code}>{code}</option>)}
-                </select>
+                    onChange={onCurrencyChange}
+                    mine={currencies || []}
+                    className="w-[78px] shrink-0 border-l border-line-strong bg-raised px-2 font-mono text-[15px] font-semibold text-neon outline-none"
+                />
             ) : (
                 <span className="flex items-center border-l border-line-strong px-3 font-mono text-[15px] text-muted">{currency}</span>
             )}

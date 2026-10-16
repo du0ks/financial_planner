@@ -5,6 +5,7 @@ import { formatDate } from '../lib/dates';
 import { minorToInput, parseMoney } from '../lib/money';
 import { AmountInput, Button, Chips, DateInput, Field, Sheet, TextInput, toast } from '../ui/kit';
 import { accountIcon } from '../ui/icons';
+import Equivalents from '../ui/Equivalents';
 import S from '../i18n/strings';
 
 /** Confirms one month's recurring income or bill: amount and account can differ each time. */
@@ -17,7 +18,7 @@ export default function ConfirmOccurrence({ occurrence, onClose }) {
     const [note, setNote] = useState(tx?.note || '');
     const [error, setError] = useState(null);
 
-    const options = accounts.filter((a) => a.kind !== 'investment' && (rule.type === 'expense' || a.kind !== 'credit'));
+    const options = accounts.filter((a) => !['investment', 'other'].includes(a.kind) && (rule.type === 'expense' || a.kind !== 'credit'));
 
     const confirm = () => {
         const amount = parseMoney(amountText, rule.currency);
@@ -45,6 +46,7 @@ export default function ConfirmOccurrence({ occurrence, onClose }) {
                 <Field label={S.common.amount} error={error}>
                     <AmountInput big autoFocus value={amountText} onChange={(v) => { setAmountText(v); setError(null); }} currency={rule.currency} />
                 </Field>
+                <Equivalents minor={parseMoney(amountText, rule.currency) || 0} currency={rule.currency} date={date} />
                 <Field label={rule.type === 'income' ? S.tx.receivedIn : S.tx.paidWith}>
                     <Chips wrap value={accountId} onChange={setAccountId} options={options.map((a) => ({ value: a.id, label: a.name, icon: accountIcon(a) }))} />
                 </Field>

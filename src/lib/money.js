@@ -176,6 +176,22 @@ export function allCurrencyCodes() {
     }
 }
 
+// Metals, fund units and test codes that are ISO 4217 but not money you hold in an account.
+const NOT_MONEY = new Set(['XAU', 'XAG', 'XPT', 'XPD', 'XDR', 'XSU', 'XUA', 'XBA', 'XBB', 'XBC', 'XBD', 'XTS', 'XXX']);
+
+/**
+ * Currency picker order: the user's own currencies first, in their order, then every other
+ * currency we have a rate for (or every ISO code when no rates are loaded yet).
+ */
+export function currencyChoices(mine = [], rates = null, current = null) {
+    const own = [...new Set([...mine, ...(current && !mine.includes(current) ? [current] : [])])];
+    const known = rates ? new Set(Object.keys(rates)) : null;
+    const rest = allCurrencyCodes()
+        .filter((code) => !own.includes(code) && !NOT_MONEY.has(code) && (!known || known.has(code)))
+        .sort();
+    return { own, rest };
+}
+
 export function formatNumber(value, fractionDigits = 2) {
     return new Intl.NumberFormat(numberLocale, { minimumFractionDigits: 0, maximumFractionDigits: fractionDigits })
         .format(Number(value));

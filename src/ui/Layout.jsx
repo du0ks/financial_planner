@@ -1,7 +1,7 @@
 import { CalendarRange, Coins, LineChart, Plus, Receipt, Settings, Wallet } from 'lucide-react';
 import { useModel } from '../state/hooks';
 import { setSetting } from '../state/actions';
-import { cx } from './kit';
+import { CurrencySelect, cx } from './kit';
 import SyncBadge from './SyncBadge';
 import { openSheet } from './sheets';
 import S from '../i18n/strings';
@@ -16,18 +16,14 @@ export const TABS = [
 
 function CurrencySwitcher() {
     const { settings } = useModel();
-    if (settings.currencies.length < 2) {
-        return <span className="font-mono text-[13px] font-semibold text-neon">{settings.displayCurrency}</span>;
-    }
     return (
-        <select
+        <CurrencySelect
             aria-label={S.settings.display}
             value={settings.displayCurrency}
-            onChange={(e) => setSetting('displayCurrency', e.target.value)}
-            className="h-9 border border-neon/60 bg-neon/10 px-2 font-mono text-[14px] font-semibold text-neon outline-none"
-        >
-            {settings.currencies.map((code) => <option key={code} value={code}>{code}</option>)}
-        </select>
+            onChange={(code) => setSetting('displayCurrency', code)}
+            mine={settings.currencies}
+            className="h-9 w-[74px] border border-neon/60 bg-neon/10 px-2 font-mono text-[14px] font-semibold text-neon outline-none"
+        />
     );
 }
 

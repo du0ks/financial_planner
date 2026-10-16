@@ -48,7 +48,7 @@ export default function DebtResolver({ tx, onClose }) {
                         <AmountInput value={amountText} onChange={(v) => { setAmountText(v); setError(null); }} currency={tx.currency} />
                     </Field>
                     <Field label={iOwe ? S.tx.resolveFrom : S.tx.resolveInto}>
-                        <Chips wrap value={accountId} onChange={setAccountId} options={accounts.filter((a) => a.kind !== 'investment').map((a) => ({ value: a.id, label: a.name, icon: accountIcon(a) }))} />
+                        <Chips wrap value={accountId} onChange={setAccountId} options={accounts.filter((a) => !['investment', 'other'].includes(a.kind)).map((a) => ({ value: a.id, label: a.name, icon: accountIcon(a) }))} />
                     </Field>
                     <Field label={S.common.date}><DateInput value={date} onChange={(e) => e.target.value && setDate(e.target.value)} /></Field>
                     <Button variant="primary" onClick={settle}>{S.common.confirm}</Button>

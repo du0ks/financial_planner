@@ -40,7 +40,8 @@ export function withDefaults(doc, { displayCurrency, at }) {
     if (displayCurrency) {
         const defaults = {
             displayCurrency,
-            currencies: [displayCurrency],
+            // USD is everyone's second currency: subscriptions, savings, prices online.
+            currencies: displayCurrency === 'USD' ? ['USD'] : [displayCurrency, 'USD'],
             spendingCurrency: displayCurrency,
             fxOverrides: {},
         };

@@ -1,6 +1,6 @@
 import { list, getSetting } from './doc';
 import { convertOrZero, goldValueMinor, goldGramPrice } from './fx';
-import { accountBalances, billsDueBeforePayday, cardDebt, CREDIT, openDebts, txAmountIn } from './ledger';
+import { accountBalances, billsDueBeforePayday, cardDebt, CREDIT, OTHER, openDebts, txAmountIn } from './ledger';
 import { goldTotals } from './gold';
 import { sumMinor } from './money';
 
@@ -13,6 +13,10 @@ import { sumMinor } from './money';
 //
 // Possible debts (like a bill someone else covered and may or may not ask back) are shown
 // next to these figures but never subtracted.
+//
+// `assets` lists everything owned, before any debt, in five groups. `chain` walks from that
+// total to net worth and on to available now; each step is one subtraction, so the three
+// headline numbers can be checked by hand.
 
 export function readSettings(doc) {
     const displayCurrency = getSetting(doc, 'displayCurrency', 'EUR');
@@ -58,32 +62,75 @@ export function buildModel(doc, rates, todayDate) {
     const linkedIds = new Set(cards.map((c) => c.linkedAccountId).filter(Boolean));
 
     const assetAccounts = accounts.filter((a) => a.kind !== CREDIT);
-    const overpaidCards = sumMinor(cards.map((c) => (c.balance > 0 ? c.display : 0)));
-    const availableCash = sumMinor(assetAccounts.filter((a) => a.available !== false).map((a) => a.display)) + overpaidCards;
-    const lockedAssets = sumMinor(assetAccounts.filter((a) => a.available === false).map((a) => a.display));
+    const isSpendable = (a) => a.kind !== OTHER && a.available !== false;
+    const accountItem = (a) => ({ id: a.id, name: a.name, kind: a.kind, minor: a.balance, currency: a.currency, display: a.display, account: a });
+    const spendableItems = [
+        ...assetAccounts.filter(isSpendable).map(accountItem),
+        // A card paid past zero holds your money until it is spent.
+        ...cards.filter((c) => c.balance > 0).map(accountItem),
+    ];
+    const lockedItems = assetAccounts.filter((a) => a.kind !== OTHER && a.available === false).map(accountItem);
     const totalCardDebt = sumMinor(cards.map((c) => c.debtDisplay));
 
     const gold = goldTotals(doc);
     const goldGram = goldGramPrice(display, fx);
-    const goldAvailableValue = goldValueMinor(gold.availableMg, display, fx) ?? 0;
-    const goldLockedValue = goldValueMinor(gold.lockedMg, display, fx) ?? 0;
     if (gold.totalMg && goldGram === null) missing.add('XAU');
+    const portionItems = (available) => list(doc, 'portions')
+        .filter((p) => Boolean(p.available) === available && gold.holdings[p.id])
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+        .map((p) => ({ id: p.id, name: p.name, mg: gold.holdings[p.id], display: goldValueMinor(gold.holdings[p.id], display, fx) ?? 0, portion: p }));
+    const goldTouchableItems = portionItems(true);
+    const goldUntouchableItems = portionItems(false);
 
     const bills = billsDueBeforePayday(doc, todayDate);
     const billItems = bills.items.map((o) => ({ ...o, display: toDisplay(o.rule.amount, o.rule.currency) }));
     const billsDue = sumMinor(billItems.map((o) => o.display));
 
     const debts = openDebts(doc).map((tx) => ({ ...tx, display: txAmountIn({ ...tx, amount: debtAmount(tx) }, display, doc, fx, missing) }));
-    const sumDebts = (direction, certainty) => sumMinor(debts
-        .filter((d) => d.debt.direction === direction && (!certainty || d.debt.certainty === certainty))
-        .map((d) => d.display));
+    const pickDebts = (direction, certainty) => debts.filter((d) => d.debt.direction === direction && (!certainty || d.debt.certainty === certainty));
+    const sumDebts = (direction, certainty) => sumMinor(pickDebts(direction, certainty).map((d) => d.display));
     const iOweCertain = sumDebts('iOwe', 'certain');
     const iOwePossible = sumDebts('iOwe', 'possible');
     const owedToMeCertain = sumDebts('owedToMe', 'certain');
     const owedToMeAll = sumDebts('owedToMe');
 
-    const availableNow = availableCash + goldAvailableValue - totalCardDebt - billsDue - iOweCertain;
-    const netWorth = availableCash + lockedAssets + goldAvailableValue + goldLockedValue - totalCardDebt - iOweCertain + owedToMeCertain;
+    const otherItems = [
+        ...assetAccounts.filter((a) => a.kind === OTHER).map(accountItem),
+        ...pickDebts('owedToMe', 'certain').map((tx) => ({
+            id: tx.id, name: tx.note || tx.debt.who || '', owedBy: tx.debt.who || null, minor: debtAmount(tx), currency: tx.currency, display: tx.display, tx,
+        })),
+    ];
+    const group = (key, items) => ({ key, items, total: sumMinor(items.map((i) => i.display)) });
+    const groups = [
+        group('spendable', spendableItems),
+        group('goldTouchable', goldTouchableItems),
+        group('goldUntouchable', goldUntouchableItems),
+        group('investments', lockedItems),
+        group('other', otherItems),
+    ];
+    const byKey = Object.fromEntries(groups.map((g) => [g.key, g]));
+    const totalAssets = sumMinor(groups.map((g) => g.total));
+
+    const availableCash = byKey.spendable.total;
+    const lockedAssets = byKey.investments.total + sumMinor(assetAccounts.filter((a) => a.kind === OTHER).map((a) => a.display));
+    const goldAvailableValue = byKey.goldTouchable.total;
+    const goldLockedValue = byKey.goldUntouchable.total;
+
+    const netWorth = totalAssets - totalCardDebt - iOweCertain;
+    const availableNow = netWorth - goldLockedValue - byKey.investments.total - byKey.other.total - billsDue;
+
+    // Each step's amount is signed; `total` steps repeat the running result.
+    const chain = [
+        { key: 'assets', minor: totalAssets, total: true },
+        { key: 'cards', minor: -totalCardDebt },
+        ...(iOweCertain ? [{ key: 'iOwe', minor: -iOweCertain }] : []),
+        { key: 'netWorth', minor: netWorth, total: true },
+        { key: 'goldUntouchable', minor: -goldLockedValue },
+        { key: 'investments', minor: -byKey.investments.total },
+        ...(byKey.other.total ? [{ key: 'other', minor: -byKey.other.total }] : []),
+        { key: 'bills', minor: -billsDue },
+        { key: 'availableNow', minor: availableNow, total: true },
+    ];
 
     return {
         doc,
@@ -95,13 +142,17 @@ export function buildModel(doc, rates, todayDate) {
         accounts,
         accountsById: byId,
         cards,
-        cashAccounts: assetAccounts.filter((a) => !linkedIds.has(a.id) && a.kind !== 'investment'),
-        investmentAccounts: assetAccounts.filter((a) => a.kind === 'investment'),
+        cashAccounts: assetAccounts.filter((a) => !linkedIds.has(a.id) && a.kind !== 'investment' && a.kind !== OTHER),
+        investmentAccounts: assetAccounts.filter((a) => a.kind === 'investment' || a.kind === OTHER),
         linkedIds,
         gold: { ...gold, gramPrice: goldGram, availableValue: goldAvailableValue, lockedValue: goldLockedValue },
         bills: { payday: bills.payday, items: billItems, total: billsDue },
         debts,
+        assets: { groups, total: totalAssets },
+        chain,
+        possibleDebts: pickDebts('iOwe', 'possible'),
         totals: {
+            totalAssets,
             availableCash,
             lockedAssets,
             totalCardDebt,

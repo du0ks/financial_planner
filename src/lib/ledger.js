@@ -4,7 +4,7 @@ import { addDays, addMonths, dayInMonth, monthOf } from './dates';
 
 // Record shapes (amounts are integer minor units of the record's own currency):
 //
-// account  { name, kind: bank|cash|ewallet|investment|credit, currency, available,
+// account  { name, kind: bank|cash|ewallet|investment|other|credit, currency, available,
 //            linkedAccountId (credit → the deposit account at the same bank), limit,
 //            monthlyRate, taxRate, minPaymentPct, statementDay, dueDay, lastStatement, note }
 //          A credit account's balance is negative while you owe money on it.
@@ -19,11 +19,18 @@ import { addDays, addMonths, dayInMonth, monthOf } from './dates';
 //            dayOfMonth, startMonth, endMonth, variable }
 
 export const CREDIT = 'credit';
+/** Anything else owned (a deposit, a car). Never counted as money you can use. */
+export const OTHER = 'other';
 
-/** The frozen rates of a transaction's date, or today's when that day was never fetched. */
+/**
+ * The frozen rates of a transaction's date, or today's when that day was never fetched. A
+ * currency added after the day was frozen falls back to today's rate until its own rate for
+ * that day is fetched.
+ */
 export function fxForDate(doc, date, latestFx) {
     const day = get(doc, 'fxDays', date);
-    return day ? { rates: day.rates, overrides: day.overrides || {} } : latestFx;
+    if (!day) return latestFx;
+    return { rates: { ...(latestFx?.rates || {}), ...day.rates }, overrides: day.overrides || {} };
 }
 
 /** A transaction's amount in another currency, at the rate of the day it happened. */

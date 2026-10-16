@@ -7,7 +7,8 @@ import { minorToInput, parseMoney } from '../lib/money';
 import { AmountInput, Field, Select, Sheet, SheetActions, TextInput, Toggle, toast } from '../ui/kit';
 import S from '../i18n/strings';
 
-const KINDS = ['bank', 'ewallet', 'cash', 'investment'];
+const KINDS = ['bank', 'ewallet', 'cash', 'investment', 'other'];
+const NEVER_AVAILABLE = new Set(['investment', 'other']);
 
 export default function AccountEditor({ account, kind = 'bank', onClose }) {
     const model = useModel();
@@ -19,7 +20,7 @@ export default function AccountEditor({ account, kind = 'bank', onClose }) {
     const [accountKind, setKind] = useState(account?.kind || kind);
     const [currency, setCurrency] = useState(account?.currency || settings.displayCurrency);
     const [balanceText, setBalanceText] = useState(current ? minorToInput(current.balance, current.currency) : '');
-    const [available, setAvailable] = useState(account ? account.available !== false : kind !== 'investment');
+    const [available, setAvailable] = useState(account ? account.available !== false : !NEVER_AVAILABLE.has(kind));
     const [note, setNote] = useState(account?.note || '');
     const [error, setError] = useState(null);
 
@@ -29,7 +30,7 @@ export default function AccountEditor({ account, kind = 'bank', onClose }) {
         if (balance === null) { setError(S.common.invalidAmount); return; }
         const sameCurrency = !account || account.currency === currency;
         saveAccount(
-            { ...(account || {}), name: name.trim(), kind: accountKind, currency, available, note: note.trim() },
+            { ...(account || {}), name: name.trim(), kind: accountKind, currency, available: accountKind === 'other' ? false : available, note: note.trim() },
             balance,
             sameCurrency ? current?.balance : null,
         );
@@ -58,7 +59,7 @@ export default function AccountEditor({ account, kind = 'bank', onClose }) {
                     <Field label={S.account.kind}>
                         <Select
                             value={accountKind}
-                            onChange={(v) => { setKind(v); if (v === 'investment') setAvailable(false); }}
+                            onChange={(v) => { setKind(v); if (NEVER_AVAILABLE.has(v)) setAvailable(false); }}
                             options={KINDS.map((value) => ({ value, label: S.kinds[value] }))}
                         />
                     </Field>
@@ -76,7 +77,7 @@ export default function AccountEditor({ account, kind = 'bank', onClose }) {
                         onCurrencyChange={setCurrency}
                     />
                 </Field>
-                <Toggle checked={available} onChange={setAvailable} label={S.account.available} hint={S.account.availableHint} />
+                {accountKind !== 'other' && <Toggle checked={available} onChange={setAvailable} label={S.account.available} hint={S.account.availableHint} />}
                 <Field label={S.common.note}>
                     <TextInput value={note} onChange={(e) => setNote(e.target.value)} placeholder={S.account.notePlaceholder} />
                 </Field>

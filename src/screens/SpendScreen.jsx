@@ -138,7 +138,8 @@ export function TxRow({ tx, model }) {
     if (!transfer) parts.push(from ? from.name : tx.type === 'expense' ? S.tx.paidByOther : '');
     if (tx.debt) parts.push(tx.debt.status === 'open' ? (tx.debt.direction === 'iOwe' ? S.money.iOwe : S.money.owedToMe) : tx.debt.status === 'settled' ? S.tx.settledTag : S.tx.cancelledTag);
     if (tx.ruleId || tx.recurring) parts.push(S.tx.recurring);
-    const converted = txAmountIn(tx, display, doc, fx);
+    const others = tx.currency === display ? [] : [...new Set([display, ...model.settings.currencies])].filter((c) => c !== tx.currency).slice(0, 2);
+    const converted = others.map((code) => S.common.approx(formatMoney(txAmountIn(tx, code, doc, fx), code, { decimals: 'never' }))).join(' · ');
     return (
         <Row
             icon={transfer ? ArrowLeftRight : categoryIcon(category)}
@@ -151,7 +152,7 @@ export function TxRow({ tx, model }) {
                     <span className={cx('tabular font-mono text-[16px]', transfer ? 'text-muted' : income ? 'text-neon' : 'text-white')}>
                         {income ? '+' : transfer ? '' : '−'}{formatMoney(tx.amount, tx.currency)}
                     </span>
-                    {tx.currency !== display && <span className="tabular font-mono text-[12px] text-dim">{S.common.approx(formatMoney(converted, display, { decimals: 'never' }))}</span>}
+                    {converted && <span className="tabular font-mono text-[12px] text-dim">{converted}</span>}
                 </span>
             )}
         />

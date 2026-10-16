@@ -3,7 +3,7 @@ import { useModel } from '../state/hooks';
 import { accountInUse, deleteAccount, saveCard } from '../state/actions';
 import { DEFAULT_MIN_PAYMENT_PCT, DEFAULT_TAX_PCT } from '../lib/cards';
 import { minorToInput, parseDecimal, parseMoney } from '../lib/money';
-import { AmountInput, Field, Select, Sheet, SheetActions, TextInput, Toggle, toast } from '../ui/kit';
+import { AmountInput, CurrencySelect, Field, Sheet, SheetActions, TextInput, Toggle, toast } from '../ui/kit';
 import S from '../i18n/strings';
 
 const pctOk = (text) => text.trim() === '' || parseDecimal(text, 4) !== null;
@@ -109,7 +109,7 @@ export default function CardEditor({ card, onClose }) {
                         {(id) => <TextInput id={id} value={name} onChange={(e) => setName(e.target.value)} autoFocus={!card} />}
                     </Field>
                     <Field label={S.common.currency}>
-                        <Select value={currency} onChange={setCurrency} options={settings.currencies.map((c) => ({ value: c, label: c }))} />
+                        <CurrencySelect value={currency} onChange={setCurrency} mine={settings.currencies} />
                     </Field>
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

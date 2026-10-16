@@ -70,7 +70,7 @@ export default function RuleEditor({ rule, type = 'expense', onClose }) {
                     <Select
                         value={accountId}
                         onChange={setAccountId}
-                        options={[{ value: '', label: S.rule.accountNone }, ...accounts.filter((a) => a.kind !== 'investment').map((a) => ({ value: a.id, label: `${a.name} · ${a.currency}` }))]}
+                        options={[{ value: '', label: S.rule.accountNone }, ...accounts.filter((a) => !['investment', 'other'].includes(a.kind)).map((a) => ({ value: a.id, label: `${a.name} · ${a.currency}` }))]}
                     />
                 </Field>
                 <div className="grid grid-cols-2 gap-3">

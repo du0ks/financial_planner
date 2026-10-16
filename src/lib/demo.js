@@ -16,6 +16,8 @@ export function buildDemoDoc(now = new Date()) {
         { id: 'demo_card', name: 'Visa', kind: 'credit', currency: 'EUR', available: true, linkedAccountId: 'demo_bank', limit: 300000, monthlyRate: '1.5', taxRate: '0', minPaymentPct: '5', balance: -42000 },
         { id: 'demo_cash', name: 'Cash', kind: 'cash', currency: 'EUR', available: true, balance: 8000 },
         { id: 'demo_usd', name: 'USD savings', kind: 'bank', currency: 'USD', available: false, balance: 150000 },
+        { id: 'demo_gbp', name: 'GBP cash', kind: 'cash', currency: 'GBP', available: true, balance: 6000 },
+        { id: 'demo_fund', name: 'Index fund', kind: 'investment', currency: 'EUR', available: false, balance: 320000 },
     ];
     accounts.forEach(({ balance, ...account }, order) => {
         doc = put(doc, 'accounts', { ...account, order }, at);
@@ -37,6 +39,10 @@ export function buildDemoDoc(now = new Date()) {
     for (const [categoryId, amount] of [['cat_groceries', 35000], ['cat_dining', 10000], ['cat_transport', 5000], ['cat_personal', 4000]]) {
         doc = put(doc, 'budgets', { id: `budget_${categoryId}`, categoryId, amount, currency: 'EUR' }, at);
     }
+    doc = put(doc, 'rules', { id: 'demo_ai', type: 'expense', name: 'AI subscription', amount: 2000, currency: 'USD', accountId: 'demo_card', categoryId: 'cat_subscriptions', dayOfMonth: 28, startMonth: month }, at);
+    doc = put(doc, 'tx', { id: 'demo_tx_usd', type: 'expense', date: addDays(today, -4), amount: 1299, currency: 'USD', accountId: 'demo_card', categoryId: 'cat_electronics', note: 'App purchase', createdAt: at + 20 }, at + 20);
+    doc = put(doc, 'tx', { id: 'demo_debt', type: 'expense', date: addDays(today, -8), amount: 34000, currency: 'EUR', accountId: null, categoryId: 'cat_household', note: 'Fridge (a friend paid)', debt: { direction: 'iOwe', certainty: 'possible', status: 'open', who: 'Alex' }, createdAt: at + 21 }, at + 21);
+    doc = put(doc, 'goldEvents', { id: 'demo_gold_t', type: 'buy', date: addDays(today, -40), mg: 5000, portionId: 'portion_available', price: 48000, currency: 'EUR' }, at);
     doc = put(doc, 'goldEvents', { id: 'demo_gold', type: 'buy', date: addDays(today, -90), mg: 10000, portionId: 'portion_longterm', price: 95000, currency: 'EUR' }, at);
     return doc;
 }

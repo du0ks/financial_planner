@@ -10,12 +10,12 @@ import S from '../i18n/strings';
 
 const TYPES = ['buy', 'sell', 'move', 'adjust'];
 
-export default function GoldEditor({ event, type: initialType = 'buy', onClose }) {
+export default function GoldEditor({ event, type: initialType = 'buy', touchable, onClose }) {
     const { doc, settings, today, display, fx } = useModel();
     const portions = list(doc, 'portions').sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     const [type, setType] = useState(event?.type || initialType);
     const [gramsText, setGramsText] = useState(event ? String(Math.abs(event.mg) / 1000 * (event.mg < 0 ? -1 : 1)) : '');
-    const [portionId, setPortionId] = useState(event?.portionId || portions[0]?.id || '');
+    const [portionId, setPortionId] = useState(event?.portionId || (touchable !== undefined && portions.find((p) => Boolean(p.available) === touchable)?.id) || portions[0]?.id || '');
     const [toPortionId, setToPortionId] = useState(event?.toPortionId || portions[1]?.id || portions[0]?.id || '');
     const [currency, setCurrency] = useState(event?.currency || settings.displayCurrency);
     const [priceText, setPriceText] = useState(event?.price ? minorToInput(event.price, event.currency) : '');
