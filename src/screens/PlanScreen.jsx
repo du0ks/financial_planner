@@ -147,7 +147,14 @@ function Planned({ model }) {
                                 <span
                                     role="button"
                                     tabIndex={0}
-                                    onClick={(e) => { e.stopPropagation(); saveRecord('planned', { ...item, status: 'bought' }); openSheet('tx', { preset: { type: 'expense', amount: plannedEstimate(item) || undefined, currency: item.currency, categoryId: item.categoryId, note: item.name } }); }}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        // Marked bought only once the expense is actually saved.
+                                        openSheet('tx', {
+                                            preset: { type: 'expense', amount: plannedEstimate(item) || undefined, currency: item.currency, categoryId: item.categoryId, note: item.name },
+                                            onSaved: () => saveRecord('planned', { ...item, status: 'bought' }),
+                                        });
+                                    }}
                                     onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.click(); }}
                                     className="font-mono text-[11px] uppercase tracking-[0.08em] text-neon"
                                 >

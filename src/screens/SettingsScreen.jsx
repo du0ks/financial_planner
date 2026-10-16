@@ -2,10 +2,9 @@ import { useMemo, useState } from 'react';
 import { ArrowLeftRight, Coins, LogOut, CreditCard, Download, PiggyBank, Plus, Receipt, Repeat, ShoppingBag, Target, Upload, Wallet, X } from 'lucide-react';
 import { useModel, useStoreState } from '../state/hooks';
 import { setSetting } from '../state/actions';
-import { legacyBackupFor, restore, syncNow } from '../state/store';
+import { restore, syncNow } from '../state/store';
 import { supabase } from '../state/supabase';
 import { isDoc, list, normalizeDoc } from '../lib/doc';
-import { migrateLegacy } from '../lib/migrate';
 import { pairKey, pairRate } from '../lib/fx';
 import { allCurrencyCodes, currencyName, currencySymbol, formatNumber, parseDecimal, setNumberLocale } from '../lib/money';
 import { Button, Field, Panel, Row, Select, TextInput, cx, toast } from '../ui/kit';
@@ -43,7 +42,7 @@ export default function SettingsScreen({ session }) {
                 <Preferences model={model} />
             </div>
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                <Data model={model} session={session} />
+                <Data model={model} />
                 <Account session={session} />
             </div>
         </div>
@@ -205,8 +204,7 @@ function Preferences({ model }) {
     );
 }
 
-function Data({ model, session }) {
-    const backup = session?.isDemo ? null : legacyBackupFor(session?.user?.id);
+function Data({ model }) {
     const exportAll = () => download(`prosperity_backup_${model.today}.json`, { app: 'prosperity', exportedAt: new Date().toISOString(), doc: model.doc });
 
     const onFile = (event) => {
@@ -217,11 +215,10 @@ function Data({ model, session }) {
         reader.onload = () => {
             try {
                 const json = JSON.parse(String(reader.result));
-                // Accepts a v5 export, a bare v5 document, or a backup from the previous version.
+                // Accepts an export from this version, or a bare document.
                 let doc = null;
                 if (isDoc(json?.doc)) doc = normalizeDoc(json.doc);
                 else if (isDoc(json)) doc = normalizeDoc(json);
-                else if (json?.cards || json?.funds) doc = migrateLegacy(json, { at: Date.now() });
                 if (!doc) throw new Error('unknown format');
                 if (!window.confirm(S.settings.restoreConfirm)) return;
                 restore(doc);
@@ -242,12 +239,6 @@ function Data({ model, session }) {
                     <Upload size={16} />{S.settings.restore}
                 </label>
                 <p className="text-[13px] text-hot">{S.settings.restoreWarn}</p>
-                {backup && (
-                    <div className="border-t border-line pt-3">
-                        <Button variant="ghost" icon={Download} onClick={() => download(`prosperity_pre_upgrade_${model.today}.json`, backup)}>{S.settings.legacyBackup}</Button>
-                        <p className="mt-1 text-[13px] text-dim">{S.settings.legacyBackupExplain}</p>
-                    </div>
-                )}
             </div>
         </Panel>
     );

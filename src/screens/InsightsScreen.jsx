@@ -94,6 +94,7 @@ function Watch({ model, alerts }) {
                 const interest = c.monthlyRate ? monthlyInterest(c.debt, c.monthlyRate, c.taxRate) : null;
                 return A.card(c.name, money(c.debt, c.currency), interest ? money(interest, c.currency) : null);
             }
+            case 'cardDue': return A.cardDue(alert.card.name, formatDate(alert.due), alert.days);
             case 'cardDates': return A.cardDates(alert.card.name);
             case 'overBudget': return A.overBudget(cat(alert.row.categoryId), money(alert.row.spent - alert.row.budget));
             case 'aheadOfPace': return A.aheadOfPace(cat(alert.row.categoryId), money(alert.row.projected), money(alert.row.budget));
@@ -212,7 +213,6 @@ function NetWorth({ model }) {
                             <div key={s.id} className="flex items-center gap-3 border-t border-line px-4 py-3 first:border-t-0 md:px-5">
                                 <span className="min-w-0 flex-1">
                                     <span className="block text-[15px] text-white">{formatDate(s.date.slice(0, 10), { year: true })}</span>
-                                    {s.legacy && <span className="block text-[12px] text-dim">{S.insights.legacyNote}</span>}
                                 </span>
                                 <span className="tabular font-mono text-[15px] text-white">{value ? formatMoney(value.netWorth, display, { decimals: 'never' }) : '—'}</span>
                                 <IconButton icon={Trash2} tone="hot" label={S.common.delete} onClick={() => { if (window.confirm(S.common.deleteConfirm(formatDate(s.date.slice(0, 10), { year: true })))) deleteRecord('snapshots', s.id); }} />

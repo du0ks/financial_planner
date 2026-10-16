@@ -63,3 +63,10 @@ export function monthRange(from, to) {
     for (let month = from; month <= to; month = addMonths(month, 1)) out.push(month);
     return out;
 }
+
+/** The next date (today or later) that falls on a given day of the month. */
+export function nextDayOfMonth(todayDate, day) {
+    const month = monthOf(todayDate);
+    const thisMonth = dayInMonth(month, day);
+    return thisMonth >= todayDate ? thisMonth : dayInMonth(addMonths(month, 1), day);
+}

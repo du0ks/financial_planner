@@ -1,6 +1,6 @@
 import { emptyDoc, isDoc, merge, normalizeDoc, replaceAll, sameDoc, SCHEMA_VERSION } from '../lib/doc';
 import { withDefaults } from '../lib/defaults';
-import { migrateLegacy } from '../lib/migrate';
+import { isCurrencyCode } from '../lib/money';
 import { buildDemoDoc } from '../lib/demo';
 import { supabase } from './supabase';
 
@@ -14,12 +14,11 @@ import { supabase } from './supabase';
 // (lib/doc.js merge), and pushes the merge. A stale tab can therefore never overwrite newer
 // data — it can only add to it.
 //
-// The v5 document is stored in the row's `extended_data` jsonb as { version: 5, doc }. The
-// legacy columns (cards, funds, others, history, gold_grams) are never written again, so they
-// stay as an untouched copy of the data from before the upgrade.
+// The v5 document is stored in the row's `extended_data` jsonb as { version: 5, doc }. Data
+// from earlier versions is not carried over (both users chose a clean start): the first v5
+// save empties the old columns, and old keys are removed from this device.
 
 const LOCAL_PREFIX = 'pv5:';
-const LEGACY_BACKUP_PREFIX = 'pv5-legacy-backup:';
 const PUSH_DELAY = 700;
 const POLL_INTERVAL = 60 * 1000;
 const RETRY_INTERVAL = 20 * 1000;
@@ -80,46 +79,35 @@ function writeLocal() {
     }
 }
 
-/** The pre-v5 data this browser kept in localStorage, if any, with its last-edit stamp. */
-function readLegacyLocal() {
+// Keys the previous versions kept in this browser. Removed on start; nothing reads them.
+const OLD_KEY = /^(finance_|demo_|fx_rates_v1$|pv5-legacy-backup:)/;
+
+function purgeOldLocal() {
     try {
-        const get = (name) => {
-            const raw = window.localStorage.getItem(`finance_${name}`);
-            return raw ? JSON.parse(raw) : undefined;
-        };
-        const cards = get('cards_v3');
-        if (!cards) return null;
-        return {
-            touchedAt: Number(window.localStorage.getItem('finance_touched_at_v1')) || 0,
-            data: {
-                cards,
-                funds: get('funds_v3'),
-                others: get('others_v3'),
-                currency: get('currency_v3'),
-                history: get('history_v3'),
-                investments: get('investments_v3'),
-                incomes: get('incomes_v3'),
-                goldGrams: get('gold_v3'),
-            },
-        };
+        for (const key of Object.keys(window.localStorage)) {
+            if (OLD_KEY.test(key)) window.localStorage.removeItem(key);
+        }
     } catch {
-        return null;
+        // ignore
     }
 }
 
-function rowToLegacy(row) {
-    const extended = row.extended_data || {};
-    return {
-        cards: row.cards,
-        funds: row.funds,
-        others: row.others,
-        currency: row.currency,
-        history: row.history,
-        goldGrams: row.gold_grams,
-        investments: extended.investments,
-        incomes: extended.incomes,
-    };
+// The previous app's columns. Every save writes them empty, so no copy of old data survives
+// in the row, and a tab still running the old app shows nothing to save back.
+const EMPTY_OLD_COLUMNS = { cards: [], funds: [], others: [], history: [], gold_grams: 0 };
+
+const REGION_CURRENCY = { TR: 'TRY', UA: 'UAH', CZ: 'CZK', US: 'USD', GB: 'GBP', PL: 'PLN', CH: 'CHF' };
+function guessCurrency(fallback) {
+    if (isCurrencyCode(fallback)) return fallback;
+    try {
+        const region = new Intl.Locale(navigator.language).maximize().region;
+        return REGION_CURRENCY[region] || 'EUR';
+    } catch {
+        return 'EUR';
+    }
 }
+
+const freshDoc = (currency) => withDefaults(emptyDoc(), { displayCurrency: guessCurrency(currency), at: Date.now() });
 
 const rowDoc = (row) => (row?.extended_data?.version === SCHEMA_VERSION && isDoc(row.extended_data.doc) ? normalizeDoc(row.extended_data.doc) : null);
 
@@ -130,6 +118,7 @@ export async function start(session) {
     if (!session) return;
     const isDemo = Boolean(session.isDemo);
     const key = isDemo ? 'demo' : session.user.id;
+    purgeOldLocal();
     const local = readLocal(key);
 
     if (isDemo) {
@@ -191,15 +180,9 @@ async function hydrate(userId, local) {
         return;
     }
 
-    const at = Date.now();
     if (!row) {
         // First time in the cloud for this account.
-        let doc = local?.doc;
-        if (!doc) {
-            const legacy = readLegacyLocal();
-            doc = legacy ? migrateLegacy(legacy.data, { at }) : withDefaults(emptyDoc(), { displayCurrency: 'EUR', at });
-        }
-        emit({ ready: true, doc, baseRev: null, dirty: true });
+        emit({ ready: true, doc: local?.doc || freshDoc(), baseRev: null, dirty: true });
         writeLocal();
         await push();
         return;
@@ -225,21 +208,10 @@ async function hydrate(userId, local) {
         return;
     }
 
-    // Upgrade. Prefer this browser's copy if it holds edits newer than the cloud row.
-    const legacyLocal = readLegacyLocal();
-    const rowTime = Date.parse(row.updated_at) || 0;
-    const source = legacyLocal && legacyLocal.touchedAt > rowTime ? legacyLocal.data : rowToLegacy(row);
-    const migrated = migrateLegacy(source, { at: rowTime || at });
-    const doc = local?.doc ? merge(local.doc, migrated) : migrated;
-    const backup = { row, localLegacy: legacyLocal?.data || null, savedAt: new Date().toISOString() };
-    try {
-        window.localStorage.setItem(LEGACY_BACKUP_PREFIX + userId, JSON.stringify(backup));
-    } catch (storageError) {
-        console.error(storageError);
-    }
-    emit({ ready: true, doc, baseRev: row.updated_at, dirty: true, legacyBackup: backup });
+    // Clean start: old data is not carried over. The push below empties the old columns.
+    emit({ ready: true, doc: local?.doc || freshDoc(row.currency), baseRev: row.updated_at, dirty: true });
     writeLocal();
-    await push({ legacyBackup: backup });
+    await push();
 }
 
 function scheduleRetry() {
@@ -260,7 +232,7 @@ function schedulePush(delay = PUSH_DELAY) {
     timers.push = window.setTimeout(() => push(), delay);
 }
 
-async function push(extra = {}) {
+async function push() {
     if (!state.key || state.key === 'demo' || !state.dirty || pushing) return;
     pushing = true;
     const userId = state.key;
@@ -275,18 +247,15 @@ async function push(extra = {}) {
             if (state.baseRev === null) {
                 result = await supabase.from('user_data').insert({
                     user_id: userId,
-                    cards: [], funds: [], others: [], history: [], gold_grams: 0,
+                    ...EMPTY_OLD_COLUMNS,
                     currency: doc.settings?.displayCurrency?.value || 'EUR',
-                    extended_data: { version: SCHEMA_VERSION, doc, ...extra },
+                    extended_data: { version: SCHEMA_VERSION, doc },
                     updated_at: nextRev,
                 }).select('updated_at');
                 if (result.error?.code === '23505') result = { data: [], error: null }; // created meanwhile
             } else {
-                const extended = { version: SCHEMA_VERSION, doc };
-                const backup = extra.legacyBackup || state.legacyBackup;
-                if (backup) extended.legacyBackup = backup;
                 result = await supabase.from('user_data')
-                    .update({ extended_data: extended, updated_at: nextRev })
+                    .update({ ...EMPTY_OLD_COLUMNS, extended_data: { version: SCHEMA_VERSION, doc }, updated_at: nextRev })
                     .eq('user_id', userId)
                     .eq('updated_at', state.baseRev)
                     .select('updated_at');
@@ -370,15 +339,6 @@ export function restore(incoming) {
 
 export function syncNow() {
     return state.dirty ? push() : pull();
-}
-
-export function legacyBackupFor(userId) {
-    try {
-        const raw = window.localStorage.getItem(LEGACY_BACKUP_PREFIX + userId);
-        return raw ? JSON.parse(raw) : null;
-    } catch {
-        return null;
-    }
 }
 
 export function resetDemo() {

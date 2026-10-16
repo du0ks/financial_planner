@@ -25,7 +25,7 @@ function useCategoryOptions(doc, income) {
     }, [doc, income]);
 }
 
-export default function TxEditor({ tx, preset = {}, onClose }) {
+export default function TxEditor({ tx, preset = {}, onSaved, onClose }) {
     const model = useModel();
     const { doc, settings, accounts, today } = model;
     const editing = Boolean(tx);
@@ -93,6 +93,7 @@ export default function TxEditor({ tx, preset = {}, onClose }) {
             debt: type === 'expense' && debt ? { status: 'open', certainty: 'possible', ...debt } : null,
         };
         saveTx(record);
+        onSaved?.();
         if (!editing) writeLast(type, accountId);
         toast(S.tx.saved);
         onClose();

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { list, put, merge } from '../lib/doc';
+import { list, put, merge, remove } from '../lib/doc';
 
 // A tiny in-memory stand-in for the one Supabase table the app uses, with the same
 // compare-and-swap behaviour: an update filtered on updated_at matches nothing once the row moved.
@@ -67,27 +67,81 @@ beforeEach(async () => {
 
 const settle = () => new Promise((r) => setTimeout(r, 0));
 
-describe('upgrade from the previous version', () => {
-    it('migrates the cloud row, keeps the legacy columns untouched and stores a backup', async () => {
+describe('clean start over the previous version', () => {
+    it('starts empty, wipes the old columns and keeps no copy of old data', async () => {
         db.row = legacyRow();
-        const before = structuredClone(db.row);
+        window.localStorage.setItem('finance_cards_v3', '[{"id":1}]');
+        window.localStorage.setItem('demo_cards_v3', '[]');
+        window.localStorage.setItem('fx_rates_v1', '{}');
         await store.start(session);
         const { row } = db;
         expect(row.extended_data.version).toBe(5);
-        expect(row.cards).toEqual(before.cards);
-        expect(row.history).toEqual(before.history);
-        expect(row.extended_data.legacyBackup.row.cards).toEqual(before.cards);
-        expect(list(row.extended_data.doc, 'accounts').map((a) => a.name).sort()).toEqual(['EUR cash', 'Ziraat', 'Ziraat account']);
+        expect(Object.keys(row.extended_data)).toEqual(['version', 'doc']);
+        expect(row).toMatchObject({ cards: [], funds: [], others: [], history: [], gold_grams: 0 });
+        expect(list(row.extended_data.doc, 'accounts')).toHaveLength(0);
         expect(list(row.extended_data.doc, 'snapshots')).toHaveLength(0);
+        expect(row.extended_data.doc.settings.displayCurrency.value).toBe('TRY');
+        expect(Object.keys(window.localStorage).filter((k) => /^(finance_|demo_|fx_rates)/.test(k))).toEqual([]);
         expect(store.getState().dirty).toBe(false);
-        expect(JSON.parse(window.localStorage.getItem('pv5-legacy-backup:user-1')).row.cards).toEqual(before.cards);
         store.stop();
     });
 
     it('creates a row for a brand-new account', async () => {
         await store.start(session);
         expect(db.row.extended_data.version).toBe(5);
+        expect(db.row.cards).toEqual([]);
         store.stop();
+    });
+});
+
+describe('deletes', () => {
+    it('stay deleted when a stale device that was already open saves later', async () => {
+        db.row = legacyRow();
+        await store.start(session); // this store is device B, open the whole time
+        store.update((doc) => put(doc, 'tx', { id: 'x', type: 'expense', amount: 9, currency: 'TRY', date: '2026-10-16' }));
+        await store.syncNow();
+
+        // Device A deletes it and saves.
+        const deletedOnA = remove(db.row.extended_data.doc, 'tx', 'x');
+        db.row = { ...db.row, extended_data: { version: 5, doc: deletedOnA }, updated_at: nextRev() };
+
+        // B, which still has x, saves an unrelated change.
+        expect(store.getState().doc.tx.x.deleted).toBeUndefined();
+        store.update((doc) => put(doc, 'tx', { id: 'y', type: 'expense', amount: 1, currency: 'TRY', date: '2026-10-16' }));
+        await store.syncNow();
+        await settle();
+
+        expect(db.row.extended_data.doc.tx.x.deleted).toBe(true);
+        expect(list(db.row.extended_data.doc, 'tx').map((t) => t.id)).toEqual(['y']);
+        expect(store.getState().doc.tx.x.deleted).toBe(true);
+        store.stop();
+    });
+
+    it('stay deleted when a device that was closed comes back with its old copy', async () => {
+        db.row = legacyRow();
+        await store.start(session);
+        store.update((doc) => put(doc, 'tx', { id: 'x', type: 'expense', amount: 9, currency: 'TRY', date: '2026-10-16' }));
+        await store.syncNow();
+        const staleCopy = window.localStorage.getItem('pv5:user-1'); // device B's storage, frozen here
+        store.update((doc) => remove(doc, 'tx', 'x'));
+        await store.syncNow();
+        store.stop();
+
+        // Device B opens with the copy from before the delete, plus an unsent edit of its own.
+        vi.resetModules();
+        window.localStorage.clear();
+        const stale = JSON.parse(staleCopy);
+        stale.doc = put(stale.doc, 'tx', { id: 'z', type: 'expense', amount: 2, currency: 'TRY', date: '2026-10-16' });
+        stale.dirty = true;
+        window.localStorage.setItem('pv5:user-1', JSON.stringify(stale));
+        const deviceB = await import('./store');
+        await deviceB.start(session);
+        await deviceB.syncNow();
+        await settle();
+
+        expect(db.row.extended_data.doc.tx.x.deleted).toBe(true);
+        expect(list(db.row.extended_data.doc, 'tx').map((t) => t.id)).toEqual(['z']);
+        deviceB.stop();
     });
 });
 

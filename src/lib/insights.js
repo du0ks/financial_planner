@@ -1,5 +1,5 @@
 import { list } from './doc';
-import { addMonths, daysBetween, daysInMonth, monthOf } from './dates';
+import { addMonths, daysBetween, daysInMonth, monthOf, nextDayOfMonth } from './dates';
 import { convertOrZero, pairRate, changeRatio, goldValueMinor } from './fx';
 import { isIncome, isSpending, occurrencesIn, txAmountIn, txInMonth } from './ledger';
 import { sumMinor } from './money';
@@ -194,6 +194,11 @@ export function buildAlerts(model, todayDate, context = {}) {
     for (const card of model.cards) {
         if (card.debt > 0) {
             alerts.push({ key: `card-${card.id}`, level: 'warn', kind: 'card', card });
+        }
+        if (card.debt > 0 && card.dueDay) {
+            const due = nextDayOfMonth(todayDate, card.dueDay);
+            const days = daysBetween(todayDate, due);
+            if (days <= 7) alerts.push({ key: `card-due-${card.id}`, level: 'warn', kind: 'cardDue', card, due, days });
         }
         if (card.debt > 0 && (!card.statementDay || !card.dueDay)) {
             alerts.push({ key: `card-dates-${card.id}`, level: 'info', kind: 'cardDates', card });

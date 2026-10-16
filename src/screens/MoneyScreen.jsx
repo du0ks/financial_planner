@@ -3,7 +3,7 @@ import { Camera, CreditCard, HandCoins, Plus, Repeat, AlertTriangle } from 'luci
 import { useModel } from '../state/hooks';
 import { saveSnapshot } from '../state/actions';
 import { list } from '../lib/doc';
-import { daysBetween, formatDate } from '../lib/dates';
+import { daysBetween, formatDate, nextDayOfMonth } from '../lib/dates';
 import { effectiveAnnualRate, effectiveMonthlyRate, monthlyInterest } from '../lib/cards';
 import { pendingOccurrences } from '../lib/ledger';
 import { debtAmount } from '../lib/model';
@@ -177,7 +177,9 @@ function CardPanel({ card, model }) {
                         {interest > 0 && <span className="text-hot"> · ≈ {formatMoney(interest, card.currency, { decimals: 'never' })}/mo</span>}
                     </p>
                 ) : card.debt > 0 && <p className="text-[13px] text-dim">{S.card.noRate}</p>}
-                {card.dueDay && <p className="text-[13px] text-dim">{S.money.statementDue(card.dueDay)}</p>}
+                {card.statementDay && card.dueDay && (
+                    <p className="text-[13px] text-dim">{S.card.nextDates(formatDate(nextDayOfMonth(model.today, card.statementDay)), formatDate(nextDayOfMonth(model.today, card.dueDay)))}</p>
+                )}
                 <div className="flex flex-wrap gap-2">
                     {card.debt > 0 && (
                         <Button size="sm" variant="primary" icon={HandCoins} onClick={() => openSheet('tx', { preset: { type: 'transfer', accountId: card.linkedAccountId || null, toAccountId: card.id, amount: card.debt, currency: card.currency } })}>

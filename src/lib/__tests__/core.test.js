@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { emptyDoc, merge, put, remove, list, replaceAll, sameDoc } from '../doc';
 import { accountBalances, billsDueBeforePayday, isSpending, occurrenceId, occurrencesIn, nextIncomeDate } from '../ledger';
 import { effectiveMonthlyRate, effectiveAnnualRate, simulatePayoff, monthlyInterest } from '../cards';
-import { migrateLegacy } from '../migrate';
 import { goldHoldings, goldTotals, goldCostBasis } from '../gold';
 import { withDefaults } from '../defaults';
 
@@ -141,40 +140,12 @@ describe('gold', () => {
     });
 });
 
-describe('migration from the previous version', () => {
-    const legacy = {
-        currency: 'TRY',
-        cards: [{ id: 1, name: 'Ziraat', limit: 50000, money: 886.18, debt: 33071.17, currency: 'TRY' }],
-        funds: [{ id: 'f1', name: 'EUR cash', amount: 400, currency: 'EUR' }, { id: 'f2', name: 'Gold', amount: 45000 }],
-        others: [{ id: 201, name: 'Rent', amount: 0 }, { id: 202, name: 'Dorm', amount: 6250, currency: 'CZK', isRecurring: true, recurrenceDay: 1 }],
-        investments: [{ id: 'g', type: 'gold', amount: 1.5 }],
-        history: [
-            { id: 'old', date: '2026-01-07T10:00:00Z', overallNet: 1, totalAssets: 2, totalDebt: 1, currency: 'TRY' },
-            { id: 'new', date: '2026-09-01T10:00:00Z', overallNet: 62600, totalCash: 100000, totalCardDebt: 37400, totalInvestmentValue: 0, currency: 'TRY' },
-        ],
-    };
-    const doc = migrateLegacy(legacy, { at: 1000, today: '2026-10-16' });
-    it('keeps the card and its bank account together', () => {
-        const card = doc.accounts.acct_card_1;
-        expect(card.kind).toBe('credit');
-        expect(card.linkedAccountId).toBe('acct_card_1_deposit');
-        const balances = accountBalances(doc, fx);
-        expect(balances.acct_card_1).toBe(-3307117);
-        expect(balances.acct_card_1_deposit).toBe(88618);
-        expect(balances.acct_fund_f1).toBe(40000);
-    });
-    it('turns bills into recurring rules and drops empty ones', () => {
-        expect(list(doc, 'rules').map((r) => r.name)).toEqual(['Dorm']);
-        expect(doc.rules.rule_bill_202.amount).toBe(625000);
-    });
-    it('keeps only snapshots that can be compared', () => {
-        expect(list(doc, 'snapshots').map((s) => s.id)).toEqual(['snap_new']);
-    });
-    it('moves gold to the long-term portion in milligrams', () => {
-        expect(goldHoldings(doc).portion_longterm).toBe(1500);
-    });
-    it('is deterministic, so two devices migrating independently agree', () => {
-        expect(sameDoc(doc, migrateLegacy(legacy, { at: 1000, today: '2026-10-16' }))).toBe(true);
-        expect(doc.settings.currencies.value.sort()).toEqual(['CZK', 'EUR', 'TRY']);
+describe('dates', () => {
+    it('finds the next date on a day of the month', async () => {
+        const { nextDayOfMonth } = await import('../dates');
+        expect(nextDayOfMonth('2026-10-16', 20)).toBe('2026-10-20');
+        expect(nextDayOfMonth('2026-10-16', 16)).toBe('2026-10-16');
+        expect(nextDayOfMonth('2026-10-16', 5)).toBe('2026-11-05');
+        expect(nextDayOfMonth('2026-01-31', 30)).toBe('2026-02-28');
     });
 });
