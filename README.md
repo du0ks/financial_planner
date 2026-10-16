@@ -1,83 +1,49 @@
-# Prosperity Planner 💎
+# Prosperity
 
-> **Redefine Your Financial Future with Intelligent Design and Precision Wealth Tracking.**
+Personal finances across accounts, cards, currencies and gold. A React PWA on GitHub Pages,
+with each user's data in one Supabase row.
 
-Prosperity is not just an app; it's your personal financial architect. Designed for those who demand clarity, privacy, and aesthetic excellence, Prosperity transforms the way you interact with your capital.
+## Run
 
----
-
-## 🌐 The Wealth Ecosystem
-
-Understanding where your money flows is the first step toward abundance. Prosperity maps your entire financial life into a single, cohesive dashboard.
-
-```mermaid
-graph TD
-    subgraph Connections
-        A[Global Markets]
-        B[Banking Institutions]
-    end
-
-    subgraph Prosperity Core
-        C{Intelligence Engine}
-        D[Dashboard]
-        E[Expense Analytics]
-        F[Investment Vault]
-    end
-
-    A -->|Real-time XAU/USD| F
-    B -->|Secure Transaction Sync| E
-    C --> D
-    D --> E
-    D --> F
-    
-    subgraph Outcomes
-        G[Financial Freedom]
-        H[Wealth Preservation]
-    end
-
-    F --> H
-    E --> G
+```
+npm install
+npm run dev      # http://localhost:5173/financial_planner/  (log in with demo / demo)
+npm test         # vitest: money, FX, gold, card interest, payoff, insights, migration, sync
+npm run lint
+npm run build
 ```
 
----
+`.env` (optional locally, see `.env.example`) holds the public Supabase URL and anon key.
+Security comes from Row Level Security on `public.user_data`, not from hiding that key.
 
-## ✨ Core Pillars
+## How the data works
 
-### 📊 Sophisticated Analytics
-Go beyond simple tables. Experience your spending through beautiful, high-fidelity visualizations. See where every cent goes with intelligent categorization and merchant-specific branding.
+- **One document per user** (`src/lib/doc.js`): collections of records (accounts, anchors,
+  tx, rules, categories, budgets, planned, portions, goldEvents, snapshots, goals, fxDays,
+  settings). Each record carries `updatedAt`; deletes are tombstones.
+- **Money is exact**: integer minor units per currency, rates and percentages through
+  big.js (`src/lib/money.js`, `src/lib/fx.js`). Gold is integer milligrams.
+- **Every item has its own currency.** Totals convert into the display currency. Balances
+  convert at today's rate; transactions at the frozen rate of their own date (`fxDays`),
+  so past months never move. Manual pair overrides live in settings.
+- **Balances** are the last value you typed (an anchor) plus every transaction after it
+  (`src/lib/ledger.js`). A credit card is an account with a negative balance; paying it is
+  a transfer. Transfers are never spending or income.
+- **Recurring income and bills** are rules; each month's occurrence waits to be confirmed.
+- **Sync** (`src/state/store.js`): local first. A save is a compare-and-swap on the row's
+  `updated_at`; if another device saved first, the documents merge record by record and
+  the merge is saved. Offline edits stay on the device and go up when the connection is back.
+- The pre-v5 columns (`cards`, `funds`, `others`, `history`, `gold_grams`) are no longer
+  written: they remain as the untouched pre-upgrade copy, also stored in
+  `extended_data.legacyBackup` and downloadable from Settings.
 
-### 🏆 Investment Mastery
-Track your gold and precious metal reserves with real-time market data. Our **Investment Vault** monitors global price fluctuations (XAU/USD) and instantly calculates your portfolio's performance across daily, weekly, and yearly horizons.
+## Market data
 
-### 🚀 Velocity & Momentum
-Track the speed of your wealth creation. Prosperity calculates your financial **Velocity** (daily growth) and **Momentum** (long-term average) to give you a clear pulse on your economic trajectory.
+- Rates and gold history: [fawazahmed0/currency-api](https://github.com/fawazahmed0/exchange-api)
+  (daily, every ISO currency plus XAU, history by date).
+- Live gold: gold-api.com XAU/USD. Gold is valued at spot, converted at today's rate; %
+  changes compare the gram price in the display currency with the same day back then.
 
-### 🎯 Milestone Engineering
-Set and smash your financial goals. Our automated milestone tracker guides you toward your next net worth target, turning the abstract idea of "saving" into a gamified quest for abundance.
+## Text
 
-### 🛡️ Privacy by Design
-Your financial data is yours alone. Prosperity is built with a security-first philosophy, ensuring your sensitive account information and balances are synchronized through private, military-grade cloud infrastructure.
-
-### 🎨 Premium Experience
-A world-class UI that feels alive. With deep support for dark mode, glassmorphic elements, and fluid micro-animations, managing your wealth becomes a moment of zen rather than a chore.
-
----
-
-## 🚀 Experience Excellence
-
-Prosperity integrates seamlessly with your lifestyle:
-
-- **Live Market Sync**: Real-time asset valuation.
-- **Liability Management**: Monitor credit cards and debts in one view.
-- **Liquid Asset Tracking**: Real-time updates on your accessible capital.
-- **Recurring Intelligence**: Never be surprised by a subscription or bill again.
-
----
-
-## 💎 The Vision
-
-Our mission is to empower individuals with the tools usually reserved for elite wealth managers. Prosperity brings clarity to complexity, allowing you to focus on what truly matters: **building your legacy.**
-
----
-
-*© 2026 Prosperity Collective. All rights reserved.*
+All UI text is in `src/i18n/strings.js`.

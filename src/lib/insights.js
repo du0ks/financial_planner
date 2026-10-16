@@ -155,9 +155,12 @@ export function forecast(model, todayDate, months = 3) {
         const bills = sumMinor(occurrences.filter((o) => o.rule.type === 'expense').map((o) => convertOrZero(o.rule.amount, o.rule.currency, display, fx)));
         let dayToDay = variableBudget;
         if (i === 0) {
-            const report = monthReport(doc, month, display, fx, todayDate);
-            const spentVariable = sumMinor(report.rows.filter((r) => !ruleCategories.has(r.categoryId)).map((r) => r.spent));
-            dayToDay = Math.max(0, variableBudget - spentVariable);
+            // What is left of each day-to-day budget this month. Spending in a category with
+            // no budget has already left the balance, so it doesn't eat into the others.
+            const spent = monthSpending(doc, month, display, fx).byCategory;
+            dayToDay = sumMinor(Object.entries(budgets)
+                .filter(([id]) => !ruleCategories.has(id))
+                .map(([id, budget]) => Math.max(0, budget - (spent[id] || 0))));
         }
         const purchases = list(doc, 'planned').filter((p) => p.status === 'planned' && p.month === month);
         const planned = sumMinor(purchases.map((p) => convertOrZero(plannedEstimate(p), p.currency, display, fx)));

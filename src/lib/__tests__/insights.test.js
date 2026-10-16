@@ -110,3 +110,11 @@ describe('planning', () => {
         expect(cardFees(doc, '2026-01-01', '2026-12-31', 'TRY', { rates }, { accountId: 'wise' })).toBe(0);
     });
 });
+
+describe('forecast this month', () => {
+    it('counts only what is left of each day-to-day budget', () => {
+        const rows = forecast(buildModel(build(), rates, TODAY), TODAY);
+        // groceries budget 3,200 CZK, 1,000 spent → 2,200 CZK = 5,500 TRY; the fridge has no budget.
+        expect(rows[0].dayToDay).toBe(550000);
+    });
+});
