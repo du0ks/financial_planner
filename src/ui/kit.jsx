@@ -149,19 +149,24 @@ export function Select({ value, onChange, options, className, ...props }) {
 /**
  * Currency dropdown: the user's own currencies first, then every other currency with a rate.
  * `mine` is settings.currencies. `named` adds the full name to each option (for wide fields).
+ * `onlyMine` leaves out the full list (the header switcher).
  */
-export function CurrencySelect({ value, onChange, mine, named, className, ...props }) {
+export function CurrencySelect({ value, onChange, mine, named, onlyMine, className, ...props }) {
     const { rates } = useMarket();
     const { own, rest } = currencyChoices(mine, rates, value);
     const label = (code) => (named ? `${code} · ${currencyName(code)}` : code);
     return (
         <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={S.common.currency} {...props} className={className ?? cx(INPUT, 'pr-8 font-mono')}>
-            <optgroup label={S.common.yourCurrencies}>
-                {own.map((code) => <option key={code} value={code}>{label(code)}</option>)}
-            </optgroup>
-            <optgroup label={S.common.allCurrencies}>
-                {rest.map((code) => <option key={code} value={code}>{named ? label(code) : `${code} · ${currencyName(code)}`}</option>)}
-            </optgroup>
+            {onlyMine ? own.map((code) => <option key={code} value={code}>{label(code)}</option>) : (
+                <>
+                    <optgroup label={S.common.yourCurrencies}>
+                        {own.map((code) => <option key={code} value={code}>{label(code)}</option>)}
+                    </optgroup>
+                    <optgroup label={S.common.allCurrencies}>
+                        {rest.map((code) => <option key={code} value={code}>{named ? label(code) : `${code} · ${currencyName(code)}`}</option>)}
+                    </optgroup>
+                </>
+            )}
         </select>
     );
 }

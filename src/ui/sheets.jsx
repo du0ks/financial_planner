@@ -6,6 +6,7 @@ const editors = {
     tx: lazy(() => import('../editors/TxEditor')),
     account: lazy(() => import('../editors/AccountEditor')),
     card: lazy(() => import('../editors/CardEditor')),
+    cardTerms: lazy(() => import('../editors/CardTermsEditor')),
     rule: lazy(() => import('../editors/RuleEditor')),
     confirm: lazy(() => import('../editors/ConfirmOccurrence')),
     planned: lazy(() => import('../editors/PlannedEditor')),

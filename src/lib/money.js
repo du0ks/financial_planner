@@ -167,17 +167,22 @@ export function currencyName(code) {
     }
 }
 
-/** Every ISO currency the browser knows about. */
-export function allCurrencyCodes() {
-    try {
-        return Intl.supportedValuesOf('currency');
-    } catch {
-        return ['CZK', 'EUR', 'GBP', 'PLN', 'TRY', 'UAH', 'USD'];
-    }
-}
+// ISO 4217 currencies in circulation (2026). Browsers also list withdrawn ones (ATS, BEF,
+// AZM, HRK, BGN…), which nobody can hold any more, so pickers use this list instead.
+const CURRENT_CURRENCIES = (
+    'AED AFN ALL AMD AOA ARS AUD AWG AZN BAM BBD BDT BHD BIF BMD BND BOB BRL BSD BTN BWP BYN BZD '
+    + 'CAD CDF CHF CLP CNY COP CRC CUP CVE CZK DJF DKK DOP DZD EGP ERN ETB EUR FJD FKP GBP GEL GHS '
+    + 'GIP GMD GNF GTQ GYD HKD HNL HTG HUF IDR ILS INR IQD IRR ISK JMD JOD JPY KES KGS KHR KMF KPW '
+    + 'KRW KWD KYD KZT LAK LBP LKR LRD LSL LYD MAD MDL MGA MKD MMK MNT MOP MRU MUR MVR MWK MXN MYR '
+    + 'MZN NAD NGN NIO NOK NPR NZD OMR PAB PEN PGK PHP PKR PLN PYG QAR RON RSD RUB RWF SAR SBD SCR '
+    + 'SDG SEK SGD SHP SLE SOS SRD SSP STN SYP SZL THB TJS TMT TND TOP TRY TTD TWD TZS UAH UGX USD '
+    + 'UYU UZS VED VES VND VUV WST XAF XCD XCG XOF XPF YER ZAR ZMW ZWG'
+).split(' ');
 
-// Metals, fund units and test codes that are ISO 4217 but not money you hold in an account.
-const NOT_MONEY = new Set(['XAU', 'XAG', 'XPT', 'XPD', 'XDR', 'XSU', 'XUA', 'XBA', 'XBB', 'XBC', 'XBD', 'XTS', 'XXX']);
+/** Every currency in current use. */
+export function allCurrencyCodes() {
+    return CURRENT_CURRENCIES;
+}
 
 /**
  * Currency picker order: the user's own currencies first, in their order, then every other
@@ -187,7 +192,7 @@ export function currencyChoices(mine = [], rates = null, current = null) {
     const own = [...new Set([...mine, ...(current && !mine.includes(current) ? [current] : [])])];
     const known = rates ? new Set(Object.keys(rates)) : null;
     const rest = allCurrencyCodes()
-        .filter((code) => !own.includes(code) && !NOT_MONEY.has(code) && (!known || known.has(code)))
+        .filter((code) => !own.includes(code) && (!known || known.has(code)))
         .sort();
     return { own, rest };
 }

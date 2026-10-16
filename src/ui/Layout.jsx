@@ -1,8 +1,10 @@
-import { CalendarRange, Coins, LineChart, Plus, Receipt, Settings, Wallet } from 'lucide-react';
+import { useEffect } from 'react';
+import { CalendarRange, Coins, CreditCard, LineChart, Plus, Receipt, Settings, Wallet } from 'lucide-react';
 import { useModel } from '../state/hooks';
 import { setSetting } from '../state/actions';
 import { CurrencySelect, cx } from './kit';
 import SyncBadge from './SyncBadge';
+import { hasDebtsTab } from './nav';
 import { openSheet } from './sheets';
 import S from '../i18n/strings';
 
@@ -11,8 +13,11 @@ export const TABS = [
     { key: 'spend', label: S.nav.spend, icon: Receipt },
     { key: 'plan', label: S.nav.plan, icon: CalendarRange },
     { key: 'gold', label: S.nav.invest, icon: Coins, amber: true },
+    { key: 'debts', label: S.nav.debts, icon: CreditCard, hot: true },
     { key: 'insights', label: S.nav.insights, icon: LineChart },
 ];
+
+const tone = (t) => (t.amber ? 'border-gold text-gold' : t.hot ? 'border-hot text-hot' : 'border-neon text-neon');
 
 function CurrencySwitcher() {
     const { settings } = useModel();
@@ -22,12 +27,18 @@ function CurrencySwitcher() {
             value={settings.displayCurrency}
             onChange={(code) => setSetting('displayCurrency', code)}
             mine={settings.currencies}
+            onlyMine
             className="h-9 w-[74px] border border-neon/60 bg-neon/10 px-2 font-mono text-[14px] font-semibold text-neon outline-none"
         />
     );
 }
 
 export default function Layout({ tab, onTab, children, email }) {
+    const model = useModel();
+    const debtsTab = hasDebtsTab(model);
+    const tabs = TABS.filter((t) => t.key !== 'debts' || debtsTab);
+    // The last debt was resolved while on the Debts tab: go back to Money.
+    useEffect(() => { if (tab === 'debts' && !debtsTab) onTab('money'); }, [tab, debtsTab, onTab]);
     const showAdd = tab === 'money' || tab === 'spend';
     return (
         <div className="flex min-h-screen flex-col">
@@ -47,14 +58,14 @@ export default function Layout({ tab, onTab, children, email }) {
                     </div>
                 </div>
                 <nav className="mx-auto hidden max-w-6xl gap-1 px-7 md:flex">
-                    {TABS.map((t) => (
+                    {tabs.map((t) => (
                         <button
                             key={t.key}
                             type="button"
                             onClick={() => onTab(t.key)}
                             aria-current={tab === t.key ? 'page' : undefined}
                             className={cx('border-b-[3px] px-4 py-3 font-mono text-[13px] font-semibold uppercase tracking-[0.12em] transition-colors',
-                                tab === t.key ? (t.amber ? 'border-gold text-gold' : 'border-neon text-neon') : 'border-transparent text-dim hover:text-white')}
+                                tab === t.key ? tone(t) : 'border-transparent text-dim hover:text-white')}
                         >
                             {t.label}
                         </button>
@@ -76,8 +87,8 @@ export default function Layout({ tab, onTab, children, email }) {
                 </button>
             )}
 
-            <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-line bg-[#06040e] md:hidden">
-                {TABS.map((t) => {
+            <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 grid border-t border-line bg-[#06040e] md:hidden" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
+                {tabs.map((t) => {
                     const Icon = t.icon;
                     const active = tab === t.key;
                     return (
@@ -86,7 +97,7 @@ export default function Layout({ tab, onTab, children, email }) {
                             type="button"
                             onClick={() => onTab(t.key)}
                             aria-current={active ? 'page' : undefined}
-                            className={cx('flex h-[68px] flex-col items-center justify-center gap-1 border-t-[3px]', active ? (t.amber ? 'border-gold text-gold' : 'border-neon text-neon') : 'border-transparent text-dim')}
+                            className={cx('flex h-[68px] flex-col items-center justify-center gap-1 border-t-[3px]', active ? tone(t) : 'border-transparent text-dim')}
                         >
                             <Icon size={20} />
                             <span className="font-mono text-[10px] uppercase tracking-[0.06em]">{t.label}</span>

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { emptyDoc, merge, put, remove, list, replaceAll, sameDoc } from '../doc';
 import { accountBalances, billsDueBeforePayday, isSpending, occurrenceId, occurrencesIn, nextIncomeDate } from '../ledger';
-import { effectiveMonthlyRate, effectiveAnnualRate, simulatePayoff, monthlyInterest } from '../cards';
 import { goldHoldings, goldTotals, goldCostBasis } from '../gold';
 import { withDefaults } from '../defaults';
 
@@ -90,36 +89,6 @@ describe('rules and spending', () => {
         expect(isSpending({ type: 'expense', amount: 1, settlesTxId: 'x' })).toBe(false);
         expect(isSpending({ type: 'expense', amount: 1, debt: { direction: 'owedToMe' } })).toBe(false);
         expect(isSpending({ type: 'expense', amount: 1, skipped: true })).toBe(false);
-    });
-});
-
-describe('card interest', () => {
-    it('adds KKDF and BSMV to the contractual rate', () => {
-        expect(effectiveMonthlyRate('3.75').toString()).toBe('0.04875');
-        expect(Number(effectiveAnnualRate(effectiveMonthlyRate('3.75')).toFixed(4))).toBeCloseTo(0.7704, 4);
-        expect(monthlyInterest(3307117, '3.75')).toBe(161222);
-    });
-    it('pays in full with no interest', () => {
-        expect(simulatePayoff({ balance: 3307117, monthlyRatePct: '3.75', strategy: { type: 'full' } })).toMatchObject({ months: 1, interest: 0 });
-    });
-    it('pays a fixed amount', () => {
-        const r = simulatePayoff({ balance: 1000000, monthlyRatePct: '3.75', strategy: { type: 'fixed', amount: 300000 } });
-        expect(r.paidOff).toBe(true);
-        expect(r.months).toBe(4);
-        expect(r.paid - r.interest).toBe(1000000);
-    });
-    it('reports a fixed payment below the interest as never paid off', () => {
-        const r = simulatePayoff({ balance: 3307117, monthlyRatePct: '3.75', strategy: { type: 'fixed', amount: 100000 } });
-        expect(r.paidOff).toBe(false);
-    });
-    it('minimum payments take years and cost far more', () => {
-        const r = simulatePayoff({ balance: 3307117, monthlyRatePct: '3.75', strategy: { type: 'minimum', pct: '20' } });
-        expect(r.paidOff).toBe(true);
-        expect(r.months).toBeGreaterThan(50);
-        expect(r.paid - r.interest).toBe(3307117);
-        const floored = simulatePayoff({ balance: 3307117, monthlyRatePct: '3.75', strategy: { type: 'minimum', pct: '20', floor: 50000 } });
-        expect(floored.months).toBeLessThan(r.months);
-        expect(floored.interest).toBeLessThan(r.interest);
     });
 });
 

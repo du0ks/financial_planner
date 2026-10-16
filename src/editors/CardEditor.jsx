@@ -1,18 +1,11 @@
 import { useState } from 'react';
 import { useModel } from '../state/hooks';
 import { accountInUse, deleteAccount, saveCard } from '../state/actions';
-import { DEFAULT_MIN_PAYMENT_PCT, DEFAULT_TAX_PCT } from '../lib/cards';
-import { minorToInput, parseDecimal, parseMoney } from '../lib/money';
-import { AmountInput, CurrencySelect, Field, Sheet, SheetActions, TextInput, Toggle, toast } from '../ui/kit';
+import { minorToInput, parseMoney } from '../lib/money';
+import { AmountInput, CurrencySelect, Field, Select, Sheet, SheetActions, TextInput, toast } from '../ui/kit';
 import S from '../i18n/strings';
 
-const pctOk = (text) => text.trim() === '' || parseDecimal(text, 4) !== null;
-const pctValue = (text) => (text.trim() === '' ? null : parseDecimal(text, 4).toString());
-const dayValue = (text) => {
-    const n = Number(text);
-    return Number.isInteger(n) && n >= 1 && n <= 31 ? n : null;
-};
-
+/** A card's name, currency, limit, debt and bank account. Interest rules live on the Debts tab. */
 export default function CardEditor({ card, onClose }) {
     const model = useModel();
     const { settings, doc, accounts, cards } = model;
@@ -27,14 +20,6 @@ export default function CardEditor({ card, onClose }) {
     const [depositMode, setDepositMode] = useState(card?.linkedAccountId ? card.linkedAccountId : card ? 'none' : 'new');
     const depositAccount = accounts.find((a) => a.id === depositMode);
     const [depositText, setDepositText] = useState(depositAccount ? minorToInput(depositAccount.balance, depositAccount.currency) : '');
-    const [monthlyRate, setMonthlyRate] = useState(card?.monthlyRate || '');
-    const [rateConfirmed, setRateConfirmed] = useState(card ? card.rateConfirmed !== false : true);
-    const [taxRate, setTaxRate] = useState(card?.taxRate ?? DEFAULT_TAX_PCT);
-    const [minPct, setMinPct] = useState(card?.minPaymentPct ?? DEFAULT_MIN_PAYMENT_PCT);
-    const [statementDay, setStatementDay] = useState(card?.statementDay ? String(card.statementDay) : '');
-    const [dueDay, setDueDay] = useState(card?.dueDay ? String(card.dueDay) : '');
-    const [stmtBalanceText, setStmtBalanceText] = useState(card?.lastStatement?.balance ? minorToInput(card.lastStatement.balance, card.currency) : '');
-    const [stmtInterestText, setStmtInterestText] = useState(card?.lastStatement?.interest ? minorToInput(card.lastStatement.interest, card.currency) : '');
     const [error, setError] = useState(null);
 
     const changeDeposit = (value) => {
@@ -48,12 +33,9 @@ export default function CardEditor({ card, onClose }) {
         const parse = (text) => (text.trim() === '' ? 0 : parseMoney(text, currency));
         const limit = parse(limitText);
         const debt = parse(debtText);
-        const stmtBalance = parse(stmtBalanceText);
-        const stmtInterest = parse(stmtInterestText);
         const depositCurrency = depositAccount?.currency || currency;
         const depositBalance = depositText.trim() === '' ? 0 : parseMoney(depositText, depositCurrency);
-        if ([limit, debt, stmtBalance, stmtInterest, depositBalance].some((v) => v === null)) { setError(S.common.invalidAmount); return; }
-        if (![monthlyRate, taxRate, minPct].every(pctOk)) { setError(S.common.invalidAmount); return; }
+        if ([limit, debt, depositBalance].some((v) => v === null)) { setError(S.common.invalidAmount); return; }
 
         saveCard(
             {
@@ -62,13 +44,8 @@ export default function CardEditor({ card, onClose }) {
                 currency,
                 limit,
                 available: true,
-                monthlyRate: pctValue(monthlyRate),
-                rateConfirmed,
-                taxRate: pctValue(taxRate) ?? '0',
-                minPaymentPct: pctValue(minPct) ?? DEFAULT_MIN_PAYMENT_PCT,
-                statementDay: dayValue(statementDay),
-                dueDay: dayValue(dueDay),
-                lastStatement: stmtBalance || stmtInterest ? { balance: stmtBalance, interest: stmtInterest } : null,
+                // A new card starts with its country's rules; they are changed on the Debts tab.
+                ...(card ? {} : { rulePreset: currency === 'TRY' ? 'turkey' : 'generic' }),
             },
             {
                 debt,
@@ -132,32 +109,6 @@ export default function CardEditor({ card, onClose }) {
                     {depositMode !== 'none' && money(S.card.depositBalance, depositText, setDepositText, null, depositAccount?.currency || currency)}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 border-t border-line pt-4">
-                    <Field label={S.card.monthlyRate}>
-                        <TextInput inputMode="decimal" value={monthlyRate} onChange={(e) => setMonthlyRate(e.target.value)} placeholder="3.75" />
-                    </Field>
-                    <Field label={S.card.taxRate} hint={S.card.taxHint}>
-                        <TextInput inputMode="decimal" value={taxRate} onChange={(e) => setTaxRate(e.target.value)} />
-                    </Field>
-                </div>
-                <Toggle checked={!rateConfirmed} onChange={(v) => setRateConfirmed(!v)} label={S.card.rateAssumed} />
-                <div className="grid grid-cols-3 gap-3">
-                    <Field label={S.card.minPayment}>
-                        <TextInput inputMode="decimal" value={minPct} onChange={(e) => setMinPct(e.target.value)} />
-                    </Field>
-                    <Field label={S.card.statementDay}>
-                        <TextInput inputMode="numeric" value={statementDay} onChange={(e) => setStatementDay(e.target.value.replace(/\D/g, ''))} placeholder="1–31" />
-                    </Field>
-                    <Field label={S.card.dueDay}>
-                        <TextInput inputMode="numeric" value={dueDay} onChange={(e) => setDueDay(e.target.value.replace(/\D/g, ''))} placeholder="1–31" />
-                    </Field>
-                </div>
-
-                <p className="border-t border-line pt-4 font-mono text-[12px] uppercase tracking-[0.1em] text-muted">{S.card.lastStatement}</p>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    {money(S.card.statementBalance, stmtBalanceText, setStmtBalanceText)}
-                    {money(S.card.statementInterest, stmtInterestText, setStmtInterestText)}
-                </div>
             </div>
         </Sheet>
     );

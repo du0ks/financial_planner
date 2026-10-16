@@ -2,15 +2,14 @@ import { Camera, CreditCard, HandCoins, Plus, Repeat, AlertTriangle } from 'luci
 import { useModel } from '../state/hooks';
 import { saveSnapshot } from '../state/actions';
 import { list } from '../lib/doc';
-import { daysBetween, formatDate, nextDayOfMonth } from '../lib/dates';
-import { effectiveAnnualRate, effectiveMonthlyRate, monthlyInterest } from '../lib/cards';
+import { daysBetween, formatDate } from '../lib/dates';
 import { pendingOccurrences } from '../lib/ledger';
-import { debtAmount } from '../lib/model';
-import { formatMoney, formatPercent } from '../lib/money';
+import { formatMoney } from '../lib/money';
 import { formatGrams } from '../lib/gold';
 import { Bar, Button, DualMoney, Empty, Money, Panel, Row, cx, toast } from '../ui/kit';
 import { accountIcon } from '../ui/icons';
 import { openSheet } from '../ui/sheets';
+import { goTo } from '../ui/nav';
 import S from '../i18n/strings';
 
 export default function MoneyScreen() {
@@ -22,7 +21,6 @@ export default function MoneyScreen() {
             <Assets model={model} />
             <Cards model={model} />
             <Accounts model={model} />
-            <Debts model={model} />
             <SnapshotFooter model={model} />
         </div>
     );
@@ -61,6 +59,9 @@ function Hero({ model }) {
         </section>
     );
 }
+
+// Chain lines whose detail lives on the Debts tab.
+const DEBT_STEPS = new Set(['cards', 'iOwe']);
 
 const GROUP_ADD = {
     spendable: () => openSheet('account'),
@@ -122,23 +123,25 @@ function Assets({ model }) {
                 <div className="max-w-xl">
                     {chain.map((step) => {
                         const label = step.key === 'bills' ? S.money.chain.bills(bills.payday ? formatDate(bills.payday) : null) : S.money.chain[step.key];
+                        const toDebts = DEBT_STEPS.has(step.key) && step.minor !== 0;
+                        const Line = toDebts ? 'button' : 'div';
                         return (
-                            <div key={step.key} className={cx('flex items-baseline justify-between gap-4', step.total ? 'mt-1 border-t border-line pt-2 pb-1' : 'py-1')}>
-                                <span className={cx('text-[14px]', step.total ? 'font-semibold text-white' : 'text-muted')}>{step.total ? '= ' : '− '}{label}</span>
+                            <Line key={step.key} type={toDebts ? 'button' : undefined} onClick={toDebts ? () => goTo('debts') : undefined} className={cx('flex w-full items-baseline justify-between gap-4 text-left', step.total ? 'mt-1 border-t border-line pt-2 pb-1' : 'py-1')}>
+                                <span className={cx('text-[14px]', step.total ? 'font-semibold text-white' : 'text-muted', toDebts && 'underline decoration-hot/50 underline-offset-4')}>{step.total ? '= ' : '− '}{label}{toDebts && <span className="ml-1 text-hot">→</span>}</span>
                                 <span className={cx('tabular shrink-0 font-mono', step.total ? 'text-[16px] font-semibold' : 'text-[15px]', step.total ? (step.key === 'netWorth' ? 'text-neon' : step.minor < 0 ? 'text-hot' : 'text-white') : step.minor ? 'text-body' : 'text-dim')}>
                                     {formatMoney(step.total ? step.minor : Math.abs(step.minor), display, { decimals: 'never' })}
                                 </span>
-                            </div>
+                            </Line>
                         );
                     })}
                     {possibleDebts.length > 0 && (
                         <div className="mt-3 border-t border-dashed border-line pt-2">
                             <p className="font-mono text-[11px] uppercase tracking-[0.1em] text-dim">{S.money.possibleNote}</p>
                             {possibleDebts.map((tx) => (
-                                <div key={tx.id} className="flex items-baseline justify-between gap-4 py-1">
-                                    <span className="text-[14px] text-dim">{tx.note || tx.debt.who || S.money.iOwe}</span>
+                                <button key={tx.id} type="button" onClick={() => goTo('debts')} className="flex w-full items-baseline justify-between gap-4 py-1 text-left">
+                                    <span className="text-[14px] text-dim underline decoration-line-strong underline-offset-4">{tx.note || tx.debt.who || S.money.iOwe} <span className="text-hot">→</span></span>
                                     <span className="tabular font-mono text-[14px] text-dim">{formatMoney(tx.display, display, { decimals: 'never' })}</span>
-                                </div>
+                                </button>
                             ))}
                         </div>
                     )}
@@ -199,8 +202,6 @@ function CardPanel({ card, model }) {
     const deposit = card.deposit;
     const bankNet = (deposit && deposit.currency === card.currency ? deposit.balance : 0) - card.debt;
     const used = card.limit > 0 ? card.debt / card.limit : 0;
-    const monthly = card.monthlyRate ? effectiveMonthlyRate(card.monthlyRate, card.taxRate) : null;
-    const interest = monthly && card.debt > 0 ? monthlyInterest(card.debt, card.monthlyRate, card.taxRate) : 0;
     const cell = (label, minor, tone, onClick) => (
         <button type="button" onClick={onClick} className="flex flex-col items-start gap-1 border border-line bg-field p-2.5 text-left">
             <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-muted">{label}</span>
@@ -243,23 +244,13 @@ function CardPanel({ card, model }) {
                 {cell(S.money.leftToSpend, card.leftToSpend, 'neon', edit)}
             </div>
             <div className="flex flex-col gap-3 px-4 pb-4">
-                {monthly ? (
-                    <p className="text-[13px] leading-snug text-muted">
-                        {S.card.effective(formatPercent(Number(monthly.toString()), 2), formatPercent(Number(effectiveAnnualRate(monthly).toString()), 0))}
-                        {card.rateConfirmed === false && <span className="text-gold"> · {S.card.rateAssumed}</span>}
-                        {interest > 0 && <span className="text-hot"> · ≈ {formatMoney(interest, card.currency, { decimals: 'never' })}/mo</span>}
-                    </p>
-                ) : card.debt > 0 && <p className="text-[13px] text-dim">{S.card.noRate}</p>}
-                {card.statementDay && card.dueDay && (
-                    <p className="text-[13px] text-dim">{S.card.nextDates(formatDate(nextDayOfMonth(model.today, card.statementDay)), formatDate(nextDayOfMonth(model.today, card.dueDay)))}</p>
-                )}
                 <div className="flex flex-wrap gap-2">
                     {card.debt > 0 && (
                         <Button size="sm" variant="primary" icon={HandCoins} onClick={() => openSheet('tx', { preset: { type: 'transfer', accountId: card.linkedAccountId || null, toAccountId: card.id, amount: card.debt, currency: card.currency } })}>
                             {S.money.pay}
                         </Button>
                     )}
-                    <Button size="sm" onClick={() => openSheet('tx', { preset: { type: 'expense', accountId: card.id, categoryId: 'cat_fees', currency: card.currency } })}>{S.money.interest}</Button>
+                    {card.debt > 0 && <Button size="sm" variant="ghost" onClick={() => goTo('debts')}>{S.money.interestOnDebts} →</Button>}
                 </div>
             </div>
         </div>
@@ -292,30 +283,6 @@ function Accounts({ model }) {
                 </Panel>
             )}
         </div>
-    );
-}
-
-function Debts({ model }) {
-    const { debts, display, doc } = model;
-    if (!debts.length) return null;
-    return (
-        <Panel title={S.money.debtsTitle} bare>
-            {debts.map((tx) => {
-                const iOwe = tx.debt.direction === 'iOwe';
-                const label = iOwe ? (tx.debt.certainty === 'possible' ? S.money.iOwe : S.money.iOweCertain) : S.money.owedToMe;
-                return (
-                    <Row
-                        key={tx.id}
-                        icon={HandCoins}
-                        iconTone={iOwe ? 'hot' : 'neon'}
-                        title={tx.note || doc.categories?.[tx.categoryId]?.name || label}
-                        subtitle={`${label}${tx.debt.who ? ` · ${tx.debt.who}` : ''} · ${formatDate(tx.date)}`}
-                        onClick={() => openSheet('debt', { tx })}
-                        right={<DualMoney minor={debtAmount(tx)} currency={tx.currency} display={display} displayMinor={tx.display} tone={iOwe ? 'hot' : 'neon'} />}
-                    />
-                );
-            })}
-        </Panel>
     );
 }
 

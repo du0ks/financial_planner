@@ -2,6 +2,7 @@ import { list, getSetting } from './doc';
 import { convertOrZero, goldValueMinor, goldGramPrice } from './fx';
 import { accountBalances, billsDueBeforePayday, cardDebt, CREDIT, OTHER, openDebts, txAmountIn } from './ledger';
 import { goldTotals } from './gold';
+import { cardTerms, interestIfMinimum } from './cards';
 import { sumMinor } from './money';
 
 // Everything the screens show is derived here from the document and today's rates, so the
@@ -28,6 +29,7 @@ export function readSettings(doc) {
         fxOverrides: getSetting(doc, 'fxOverrides', {}),
         snapshotReminderDays: getSetting(doc, 'snapshotReminderDays', 30),
         bigPurchaseLimit: getSetting(doc, 'bigPurchaseLimit', 1),
+        costBasis: getSetting(doc, 'costBasis', 'budget'),
     };
 }
 
@@ -51,9 +53,15 @@ export function buildModel(doc, rates, todayDate) {
 
     const cards = accounts.filter((a) => a.kind === CREDIT).map((card) => {
         const debt = cardDebt(card.balance);
+        const terms = cardTerms(card);
+        const interestMonthly = terms.monthlyRatePct ? interestIfMinimum(debt, terms) : 0;
         return {
             ...card,
             debt,
+            terms,
+            // Next statement's interest if only the minimum is paid; null when the rate is unknown.
+            interestMonthly: terms.monthlyRatePct ? interestMonthly : null,
+            interestMonthlyDisplay: toDisplay(interestMonthly, card.currency),
             debtDisplay: toDisplay(debt, card.currency),
             leftToSpend: (card.limit || 0) - debt,
             deposit: card.linkedAccountId ? byId[card.linkedAccountId] || null : null,
@@ -153,6 +161,7 @@ export function buildModel(doc, rates, todayDate) {
         possibleDebts: pickDebts('iOwe', 'possible'),
         totals: {
             totalAssets,
+            cardInterestMonthly: sumMinor(cards.map((c) => c.interestMonthlyDisplay)),
             availableCash,
             lockedAssets,
             totalCardDebt,

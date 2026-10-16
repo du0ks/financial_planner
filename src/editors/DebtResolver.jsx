@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useModel } from '../state/hooks';
-import { resolveDebt } from '../state/actions';
+import { deleteTx, resolveDebt } from '../state/actions';
 import { formatDate } from '../lib/dates';
 import { debtAmount } from '../lib/model';
 import { formatMoney, minorToInput, parseMoney } from '../lib/money';
@@ -57,6 +57,7 @@ export default function DebtResolver({ tx, onClose }) {
                 <div className="flex flex-col gap-2">
                     {tx.debt.certainty === 'possible' && <Button onClick={() => act('certain')}>{S.tx.resolveMakeCertain}</Button>}
                     <Button variant="danger" onClick={() => act('cancel')}>{S.tx.resolveCancel}</Button>
+                    <Button variant="ghost" onClick={() => { if (window.confirm(S.common.deleteConfirm(tx.note || category?.name || ''))) { deleteTx(tx.id); onClose(); } }}>{S.common.delete}</Button>
                 </div>
             </div>
         </Sheet>

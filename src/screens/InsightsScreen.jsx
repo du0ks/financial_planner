@@ -1,18 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Camera, Info, Trash2 } from 'lucide-react';
+import { AlertTriangle, Camera, ChevronRight, Info, Target, Trash2 } from 'lucide-react';
 import { useModel } from '../state/hooks';
-import { deleteRecord, saveSnapshot } from '../state/actions';
+import { deleteRecord, saveSnapshot, setSetting } from '../state/actions';
 import { historicalRates } from '../state/market';
 import { list } from '../lib/doc';
 import { addDays, addMonths, daysBetween, formatDate, formatMonth, monthOf } from '../lib/dates';
-import { convertMinor } from '../lib/fx';
-import { monthlyInterest } from '../lib/cards';
-import { buildAlerts, goalProgress, monthReport, monthlyCost } from '../lib/insights';
+import { COST_BASES, buildAlerts, goalProgress, incomeBuys, monthReport, monthlyCost } from '../lib/insights';
 import { isSpending, nextIncomeDate, txAmountIn, txInMonth } from '../lib/ledger';
-import { debtAmount } from '../lib/model';
 import { decompose, makeSnapshot, snapshotValue } from '../lib/snapshots';
 import { formatMoney, formatPercent, sumMinor } from '../lib/money';
-import { Bar, Button, Empty, IconButton, Panel, Stat, cx, toast } from '../ui/kit';
+import { Bar, Button, Empty, IconButton, Panel, Segmented, Stat, cx, toast } from '../ui/kit';
+import { goTo } from '../ui/nav';
 import TimeChart from '../ui/TimeChart';
 import { TxRow } from './SpendScreen';
 import { BudgetRows } from './PlanScreen';
@@ -43,7 +41,10 @@ export default function InsightsScreen() {
             <NetWorth model={model} />
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                 <Purchasing model={model} rule={incomeRule} />
-                <Runway model={model} />
+                <div className="flex flex-col gap-6">
+                    <Runway model={model} />
+                    <Goals model={model} />
+                </div>
             </div>
         </div>
     );
@@ -89,16 +90,10 @@ function Watch({ model, alerts }) {
         const A = S.insights.alerts;
         const cat = (id) => doc.categories?.[id]?.name || id;
         switch (alert.kind) {
-            case 'card': {
-                const c = alert.card;
-                const interest = c.monthlyRate ? monthlyInterest(c.debt, c.monthlyRate, c.taxRate) : null;
-                return A.card(c.name, money(c.debt, c.currency), interest ? money(interest, c.currency) : null);
-            }
+            case 'debts': return A.debts(alert.interest ? money(alert.interest) : null, alert.open);
             case 'cardDue': return A.cardDue(alert.card.name, formatDate(alert.due), alert.days);
-            case 'cardDates': return A.cardDates(alert.card.name);
             case 'overBudget': return A.overBudget(cat(alert.row.categoryId), money(alert.row.spent - alert.row.budget));
             case 'aheadOfPace': return A.aheadOfPace(cat(alert.row.categoryId), money(alert.row.projected), money(alert.row.budget));
-            case 'debt': return A.debt(alert.debt.note || cat(alert.debt.categoryId), money(debtAmount(alert.debt), alert.debt.currency), alert.debt.debt.certainty === 'possible');
             case 'bigClash': return A.bigClash(formatMonth(alert.clash.month), alert.clash.items.map((i) => i.name).join(', '));
             case 'planned': return A.planned(alert.item.name, formatMonth(alert.item.month));
             case 'snapshot': return A.snapshot(alert.days);
@@ -111,14 +106,23 @@ function Watch({ model, alerts }) {
     return (
         <Panel title={S.insights.watchTitle} bare>
             {alerts.length === 0 && <Empty>{S.insights.allClear}</Empty>}
-            {alerts.map((alert) => (
-                <p key={alert.key} className="flex items-start gap-3 border-t border-line px-4 py-3 text-[15px] leading-snug first:border-t-0 md:px-5">
-                    {alert.level === 'warn'
-                        ? <AlertTriangle size={17} className="mt-0.5 shrink-0 text-gold" />
-                        : <Info size={17} className="mt-0.5 shrink-0 text-neon" />}
-                    <span className="text-body">{text(alert)}</span>
-                </p>
-            ))}
+            {alerts.map((alert) => {
+                const Line = alert.link ? 'button' : 'p';
+                return (
+                    <Line
+                        key={alert.key}
+                        type={alert.link ? 'button' : undefined}
+                        onClick={alert.link ? () => goTo(alert.link) : undefined}
+                        className={cx('flex w-full items-start gap-3 border-t border-line px-4 py-3 text-left text-[15px] leading-snug first:border-t-0 md:px-5', alert.link && 'hover:bg-white/[0.03]')}
+                    >
+                        {alert.level === 'warn'
+                            ? <AlertTriangle size={17} className="mt-0.5 shrink-0 text-gold" />
+                            : <Info size={17} className="mt-0.5 shrink-0 text-neon" />}
+                        <span className="flex-1 text-body">{text(alert)}</span>
+                        {alert.link && <ChevronRight size={17} className="mt-0.5 shrink-0 text-dim" />}
+                    </Line>
+                );
+            })}
         </Panel>
     );
 }
@@ -226,42 +230,42 @@ function NetWorth({ model }) {
 }
 
 function Purchasing({ model, rule }) {
-    const { settings, today } = model;
+    const { doc, settings, today } = model;
     const targets = settings.currencies.filter((c) => c !== rule?.currency).slice(0, 3);
-    const [rows, setRows] = useState([]);
+    const [months, setMonths] = useState([]);
     useEffect(() => {
         if (!rule) return undefined;
         let alive = true;
-        const months = Array.from({ length: 12 }, (_, i) => addMonths(monthOf(today), -11 + i));
-        Promise.all(months.map((m) => historicalRates(`${m}-01`).then((rates) => ({ month: m, rates }))))
-            .then((entries) => { if (alive) setRows(entries.filter((e) => e.rates)); });
+        const list12 = Array.from({ length: 12 }, (_, i) => addMonths(monthOf(today), -11 + i));
+        Promise.all(list12.map((m) => historicalRates(`${m}-01`).then((rates) => ({ month: m, rates }))))
+            .then((entries) => { if (alive) setMonths(entries.filter((e) => e.rates)); });
         return () => { alive = false; };
     }, [rule, today]);
     if (!rule || !targets.length) return null;
-    const value = (rates, code) => convertMinor(rule.amount, rule.currency, code, { rates });
-    const first = rows[0];
+    const rows = incomeBuys(doc, rule, months, targets);
+    const salary = formatMoney(rule.amount, rule.currency, { decimals: 'never' });
     return (
-        <Panel title={S.insights.purchasingTitle} subtitle={S.insights.purchasingExplain(formatMoney(rule.amount, rule.currency, { decimals: 'never' }))}>
+        <Panel title={S.insights.purchasingTitle} subtitle={S.insights.purchasingExplain}>
+            {rows.length > 0 && <p className="mb-3 text-[13px] text-muted">{S.insights.purchasingChange(formatMonth(rows[0].month))}</p>}
             <div className="-mx-4 overflow-x-auto px-4">
                 <table className="w-full border-collapse text-[14px]">
                     <thead>
                         <tr>
                             <th className="pb-2 text-left font-mono text-[12px] font-semibold uppercase text-muted">{S.common.month}</th>
-                            {targets.map((code) => <th key={code} className="pb-2 text-right font-mono text-[12px] font-semibold uppercase text-muted">{code}</th>)}
+                            {targets.map((code) => <th key={code} className="pb-2 text-right font-mono text-[12px] font-semibold uppercase text-muted">{code} <span className="text-dim">· %</span></th>)}
                         </tr>
                     </thead>
                     <tbody>
                         {[...rows].reverse().map((row) => (
                             <tr key={row.month} className="border-t border-line">
-                                <td className="py-1.5 text-body">{formatMonth(row.month)}</td>
+                                <td className="py-1.5 text-body">{formatMonth(row.month)}{row.assumed && <span className="text-gold">*</span>}</td>
                                 {targets.map((code) => {
-                                    const v = value(row.rates, code);
-                                    const base = first ? value(first.rates, code) : null;
-                                    const change = base && v !== null ? (v - base) / base : null;
+                                    const v = row.values[code];
+                                    const change = row.change[code];
                                     return (
-                                        <td key={code} className="tabular py-1.5 text-right font-mono text-white">
+                                        <td key={code} className={cx('tabular py-1.5 text-right font-mono', row.assumed ? 'text-muted' : 'text-white')}>
                                             {v === null ? '—' : formatMoney(v, code, { decimals: 'never' })}
-                                            {change !== null && row !== first && <span className={cx('ml-2 text-[12px]', change < 0 ? 'text-hot' : 'text-neon')}>{formatPercent(change, 0, { signed: true })}</span>}
+                                            {change !== null && <span className={cx('ml-2 text-[12px]', change < 0 ? 'text-hot' : 'text-neon')}>{formatPercent(change, 0, { signed: true })}</span>}
                                         </td>
                                     );
                                 })}
@@ -270,29 +274,58 @@ function Purchasing({ model, rule }) {
                     </tbody>
                 </table>
             </div>
+            {rows.some((r) => r.assumed) && <p className="mt-3 text-[13px] leading-snug text-gold">{S.insights.purchasingAssumed(salary)}</p>}
         </Panel>
     );
 }
 
 function Runway({ model }) {
-    const { doc, display, fx, today, totals } = model;
-    const cost = monthlyCost(doc, today, display, fx);
-    const goals = list(doc, 'goals');
+    const { doc, display, fx, today, totals, settings } = model;
+    const cost = monthlyCost(doc, today, display, fx, settings.costBasis);
+    const money = (minor) => formatMoney(minor, display, { decimals: 'never' });
     return (
-        <Panel title={S.insights.runwayTitle} subtitle={cost ? S.insights.runwayExplain(formatMoney(cost, display, { decimals: 'never' })) : S.insights.noCost}>
-            {cost ? <p className="tabular font-display text-[40px] font-bold text-white">{S.insights.runway(Math.max(0, totals.availableNow / cost).toFixed(1))}</p> : null}
-            {goals.map((goal) => {
-                const p = goalProgress(goal, model);
-                return (
-                    <div key={goal.id} className="mt-4">
-                        <div className="mb-1.5 flex justify-between gap-3 text-[14px]">
-                            <span className="text-body">{goal.name}</span>
-                            <span className="tabular font-mono text-white">{S.plan.goalProgress(formatMoney(p.current, display, { decimals: 'never' }), formatMoney(p.target, display, { decimals: 'never' }))}</span>
-                        </div>
-                        <Bar ratio={p.ratio} />
-                    </div>
-                );
-            })}
+        <Panel title={S.insights.runwayTitle} subtitle={cost ? S.insights.runwayExplain(money(totals.availableNow), money(cost.total)) : S.insights.noCost}>
+            {cost && <p className="tabular font-display text-[40px] font-bold text-white">{S.insights.runway(Math.max(0, totals.availableNow / cost.total).toFixed(1))}</p>}
+            <Segmented
+                className="mt-3"
+                value={settings.costBasis}
+                onChange={(v) => setSetting('costBasis', v)}
+                options={COST_BASES.map((value) => ({ value, label: S.insights.costBases[value] }))}
+            />
+            {cost && (
+                <div className="mt-3 text-[14px]">
+                    <p className="flex justify-between gap-3 py-1"><span className="text-muted">{S.insights.costBills}</span><span className="tabular font-mono text-white">{money(cost.bills)}</span></p>
+                    {settings.costBasis === 'budget' && <p className="flex justify-between gap-3 py-1"><span className="text-muted">+ {S.insights.costBudgets}</span><span className="tabular font-mono text-white">{money(cost.budgets)}</span></p>}
+                    <p className="flex justify-between gap-3 border-t border-line py-1.5 font-semibold"><span className="text-white">= {S.insights.costBases[settings.costBasis]}</span><span className="tabular font-mono text-white">{money(cost.total)}</span></p>
+                    <p className="mt-2 text-[13px] leading-snug text-dim">{S.insights.costNote}</p>
+                </div>
+            )}
+        </Panel>
+    );
+}
+
+/** A short summary; goals are managed on Plan. */
+function Goals({ model }) {
+    const goals = list(model.doc, 'goals');
+    if (!goals.length) return null;
+    return (
+        <Panel bare>
+            <button type="button" onClick={() => goTo('plan')} className="flex w-full flex-col gap-2 p-4 text-left hover:bg-white/[0.03] md:p-5">
+                <span className="flex items-center justify-between gap-3">
+                    <span className="flex items-center gap-2 font-display text-[17px] font-semibold text-white"><Target size={17} className="text-neon" />{S.insights.goalsTitle}</span>
+                    <span className="flex items-center gap-1 font-mono text-[11px] uppercase tracking-[0.08em] text-dim">{S.insights.goalsMore}<ChevronRight size={14} /></span>
+                </span>
+                {goals.map((goal) => {
+                    const p = goalProgress(goal, model);
+                    return (
+                        <span key={goal.id} className="flex items-center gap-3 text-[14px]">
+                            <span className="min-w-0 flex-1 truncate text-body">{goal.name}</span>
+                            <Bar ratio={p.ratio} className="w-24" />
+                            <span className="tabular w-10 text-right font-mono text-neon">{p.ratio === null ? '—' : formatPercent(p.ratio, 0)}</span>
+                        </span>
+                    );
+                })}
+            </button>
         </Panel>
     );
 }

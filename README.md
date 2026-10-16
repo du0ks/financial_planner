@@ -8,7 +8,7 @@ with each user's data in one Supabase row.
 ```
 npm install
 npm run dev      # http://localhost:5173/financial_planner/  (log in with demo / demo)
-npm test         # vitest: money, FX, gold, card interest, payoff, insights, migration, sync
+npm test         # vitest: money, FX, gold, card interest, payoff, insights, sync
 npm run lint
 npm run build
 ```
@@ -30,6 +30,10 @@ Security comes from Row Level Security on `public.user_data`, not from hiding th
   (`src/lib/ledger.js`). A credit card is an account with a negative balance; paying it is
   a transfer. Transfers are never spending or income.
 - **Recurring income and bills** are rules; each month's occurrence waits to be confirmed.
+- **Card interest** (`src/lib/cards.js`) follows each card's own terms. The Turkey preset
+  charges interest only on the unpaid remainder once the minimum is paid, plus KKDF + BSMV,
+  and late interest on any unpaid part of the minimum. The Generic preset has no taxes and
+  lets the card charge either the remainder or the whole statement.
 - **Sync** (`src/state/store.js`): local first. A save is a compare-and-swap on the row's
   `updated_at`; if another device saved first, the documents merge record by record and
   the merge is saved. Offline edits stay on the device and go up when the connection is back.

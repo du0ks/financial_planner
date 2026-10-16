@@ -80,6 +80,14 @@ export function saveCard(card, { debt, currentDebt, deposit, depositBalance, cur
     });
 }
 
+/** Saves a card's interest rules without touching its balance or bank account. */
+export function saveCardTerms(id, terms) {
+    update((doc) => {
+        const card = get(doc, 'accounts', id);
+        return card ? put(doc, 'accounts', { ...card, ...terms }) : doc;
+    });
+}
+
 // ---------- transactions ----------
 
 export function saveTx(tx) {

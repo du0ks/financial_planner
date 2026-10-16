@@ -5,10 +5,9 @@ import { list } from '../lib/doc';
 import { formatMonth, monthOf } from '../lib/dates';
 import { bigPurchaseClashes, forecast, goalProgress, monthReport, monthlyCost, plannedEstimate } from '../lib/insights';
 import { formatMoney, formatPercent } from '../lib/money';
-import { Bar, Button, DualMoney, Empty, Money, Panel, Row, cx } from '../ui/kit';
+import { Bar, Button, DualMoney, Empty, Panel, Row, cx } from '../ui/kit';
 import { categoryIcon } from '../ui/icons';
 import { openSheet } from '../ui/sheets';
-import CardCosts from './CardCosts';
 import S from '../i18n/strings';
 
 export default function PlanScreen() {
@@ -25,10 +24,7 @@ export default function PlanScreen() {
                 <Planned model={model} />
             </div>
             <Forecast model={model} />
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                <CardCosts />
-                <Goals model={model} />
-            </div>
+            <Goals model={model} />
         </div>
     );
 }
@@ -215,9 +211,9 @@ function Forecast({ model }) {
 }
 
 function Goals({ model }) {
-    const { doc, display, today, fx } = model;
+    const { doc, display, today, fx, settings } = model;
     const goals = list(doc, 'goals');
-    const cost = monthlyCost(doc, today, display, fx);
+    const cost = monthlyCost(doc, today, display, fx, settings.costBasis)?.total;
     return (
         <Panel title={S.plan.goalsTitle} right={<Button size="sm" icon={Plus} onClick={() => openSheet('goal')}>{S.plan.addGoal}</Button>} bare>
             {goals.length === 0 && <Empty>{S.common.noneYet}</Empty>}

@@ -8,6 +8,7 @@ import { getSetting } from './lib/doc';
 import { setNumberLocale } from './lib/money';
 import Layout from './ui/Layout';
 import { SheetHost } from './ui/sheets';
+import { onGoTo } from './ui/nav';
 import { Button, Toaster } from './ui/kit';
 import AuthScreen from './screens/AuthScreen';
 import MoneyScreen from './screens/MoneyScreen';
@@ -17,6 +18,7 @@ const screens = {
     spend: lazy(() => import('./screens/SpendScreen')),
     plan: lazy(() => import('./screens/PlanScreen')),
     gold: lazy(() => import('./screens/GoldScreen')),
+    debts: lazy(() => import('./screens/DebtsScreen')),
     insights: lazy(() => import('./screens/InsightsScreen')),
     settings: lazy(() => import('./screens/SettingsScreen')),
 };
@@ -40,6 +42,7 @@ function Signed({ session }) {
         window.scrollTo(0, 0);
         try { window.localStorage.setItem(TAB_KEY, next); } catch { /* ignore */ }
     };
+    useEffect(() => onGoTo(changeTab), []);
 
     if (state.bootError && !state.ready) {
         return (

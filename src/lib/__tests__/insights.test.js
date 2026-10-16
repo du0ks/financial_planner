@@ -99,9 +99,11 @@ describe('planning', () => {
         expect(rows[1].start).toBe(rows[0].end);
         const alerts = buildAlerts(buildModel(doc, rates, TODAY), TODAY).map((a) => a.kind);
         expect(alerts).toContain('bigClash');
-        expect(alerts).toContain('card');
-        expect(alerts).toContain('debt');
         expect(alerts).toContain('snapshot');
+        // Card interest and open debts are one line pointing at the Debts tab.
+        expect(alerts.filter((k) => k === 'debts')).toHaveLength(1);
+        expect(alerts).not.toContain('card');
+        expect(alerts).not.toContain('debt');
     });
     it('sums card fees', () => {
         let doc = build();

@@ -13,7 +13,8 @@ export function buildDemoDoc(now = new Date()) {
 
     const accounts = [
         { id: 'demo_bank', name: 'Main bank', kind: 'bank', currency: 'EUR', available: true, balance: 245000 },
-        { id: 'demo_card', name: 'Visa', kind: 'credit', currency: 'EUR', available: true, linkedAccountId: 'demo_bank', limit: 300000, monthlyRate: '1.5', taxRate: '0', minPaymentPct: '5', balance: -42000 },
+        { id: 'demo_card', name: 'Visa', kind: 'credit', currency: 'EUR', available: true, linkedAccountId: 'demo_bank', limit: 300000, monthlyRate: '1.5', taxRate: '0', minPaymentPct: '5', rulePreset: 'generic', interestBase: 'statement', statementDay: 5, dueDay: 25, balance: -42000 },
+        { id: 'demo_store', name: 'Store card', kind: 'credit', currency: 'GBP', available: true, limit: 100000, monthlyRate: '2.2', taxRate: '0', minPaymentPct: '3', minPaymentFloor: 2500, rulePreset: 'generic', interestBase: 'remainder', balance: -18500 },
         { id: 'demo_cash', name: 'Cash', kind: 'cash', currency: 'EUR', available: true, balance: 8000 },
         { id: 'demo_usd', name: 'USD savings', kind: 'bank', currency: 'USD', available: false, balance: 150000 },
         { id: 'demo_gbp', name: 'GBP cash', kind: 'cash', currency: 'GBP', available: true, balance: 6000 },

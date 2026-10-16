@@ -1,7 +1,8 @@
 import { list } from './doc';
 import { addMonths, daysBetween, daysInMonth, monthOf, nextDayOfMonth } from './dates';
 import { convertOrZero, pairRate, changeRatio, goldValueMinor } from './fx';
-import { isIncome, isSpending, occurrencesIn, txAmountIn, txInMonth } from './ledger';
+import { fxForDate, isIncome, isSpending, occurrencesIn, ruleActiveIn, txAmountIn, txInMonth } from './ledger';
+import { convertMinor } from './fx';
 import { sumMinor } from './money';
 import { debtAmount } from './model';
 
@@ -108,25 +109,54 @@ function allItems(doc, month, currency, fx) {
     return txInMonth(doc, month).filter(isSpending).map((tx) => ({ tx, value: txAmountIn(tx, currency, doc, fx) }));
 }
 
-/** Average monthly spending over the last `count` complete months that have any spending. */
-export function averageSpending(doc, todayDate, currency, fx, count = 3) {
-    const totals = [];
-    for (let i = 1; i <= 12 && totals.length < count; i += 1) {
-        const month = addMonths(monthOf(todayDate), -i);
-        const total = monthSpending(doc, month, currency, fx).total;
-        if (total > 0) totals.push(total);
-    }
-    return totals.length ? Math.round(sumMinor(totals) / totals.length) : null;
+export const COST_BASES = ['budget', 'bills'];
+
+/**
+ * What one normal month costs, from plans rather than history, so one-off purchases never
+ * inflate it:
+ *   bills   — recurring bills active this month
+ *   budgets — monthly budgets for categories no recurring bill already covers
+ * basis 'budget' counts both; 'bills' counts only the recurring bills (the bare minimum).
+ * Returns null when there is nothing to base it on.
+ */
+export function monthlyCost(doc, todayDate, currency, fx, basis = 'budget') {
+    const month = monthOf(todayDate);
+    const rules = list(doc, 'rules').filter((r) => r.type === 'expense' && ruleActiveIn(r, month));
+    const covered = new Set(rules.map((r) => r.categoryId));
+    const bills = sumMinor(rules.map((r) => convertOrZero(r.amount, r.currency, currency, fx)));
+    const budgets = sumMinor(Object.entries(budgetsIn(doc, currency, fx)).filter(([id]) => !covered.has(id)).map(([, v]) => v));
+    const total = basis === 'bills' ? bills : bills + budgets;
+    if (!total) return null;
+    return { basis, bills, budgets: basis === 'bills' ? 0 : budgets, total };
 }
 
-/** What one month of normal life costs: the budget if there is one, else recent average. */
-export function monthlyCost(doc, todayDate, currency, fx) {
-    const budgetTotal = sumMinor(Object.values(budgetsIn(doc, currency, fx)));
-    const ruleTotal = sumMinor(list(doc, 'rules')
-        .filter((r) => r.type === 'expense' && !list(doc, 'budgets').some((b) => b.categoryId === r.categoryId))
-        .map((r) => convertOrZero(r.amount, r.currency, currency, fx)));
-    if (budgetTotal > 0) return budgetTotal + ruleTotal;
-    return averageSpending(doc, todayDate, currency, fx);
+/**
+ * What one salary buys in other currencies, month by month. Uses the salary actually recorded
+ * that month (at its own day's rate) when there is one, else today's salary at that month's
+ * rate, marked `assumed`. `change` compares each value with the first month shown.
+ * ratesByMonth: [{ month, rates }] for the first day of each month, oldest first.
+ */
+export function incomeBuys(doc, rule, ratesByMonth, targets) {
+    const rows = ratesByMonth.map(({ month, rates }) => {
+        const monthFx = { rates, overrides: {} };
+        const recorded = txInMonth(doc, month).filter((tx) => isIncome(tx) && tx.ruleId === rule.id);
+        const values = {};
+        for (const code of targets) {
+            values[code] = recorded.length
+                ? sumMinor(recorded.map((tx) => convertMinor(tx.amount, tx.currency, code, fxForDate(doc, tx.date, monthFx)) ?? 0))
+                : convertMinor(rule.amount, rule.currency, code, monthFx);
+        }
+        return { month, assumed: recorded.length === 0, values };
+    });
+    const first = rows[0];
+    return rows.map((row) => ({
+        ...row,
+        change: Object.fromEntries(targets.map((code) => {
+            const base = first?.values[code];
+            const value = row.values[code];
+            return [code, row === first || !base || value === null ? null : (value - base) / base];
+        })),
+    }));
 }
 
 /** Planned purchases' best guess: the middle of the estimate range. */
@@ -191,25 +221,21 @@ export function buildAlerts(model, todayDate, context = {}) {
     const alerts = [];
     const report = monthReport(doc, monthOf(todayDate), display, fx, todayDate);
 
+    // Debt detail lives on the Debts tab; here it is one line.
+    const personal = model.debts.filter((d) => d.debt.direction === 'iOwe');
+    if (model.totals.totalCardDebt > 0 || personal.length) {
+        alerts.push({ key: 'debts', level: model.totals.cardInterestMonthly > 0 ? 'warn' : 'info', kind: 'debts', interest: model.totals.cardInterestMonthly, open: personal.length, link: 'debts' });
+    }
     for (const card of model.cards) {
-        if (card.debt > 0) {
-            alerts.push({ key: `card-${card.id}`, level: 'warn', kind: 'card', card });
-        }
         if (card.debt > 0 && card.dueDay) {
             const due = nextDayOfMonth(todayDate, card.dueDay);
             const days = daysBetween(todayDate, due);
-            if (days <= 7) alerts.push({ key: `card-due-${card.id}`, level: 'warn', kind: 'cardDue', card, due, days });
-        }
-        if (card.debt > 0 && (!card.statementDay || !card.dueDay)) {
-            alerts.push({ key: `card-dates-${card.id}`, level: 'info', kind: 'cardDates', card });
+            if (days <= 7) alerts.push({ key: `card-due-${card.id}`, level: 'warn', kind: 'cardDue', card, due, days, link: 'debts' });
         }
     }
     for (const row of report.rows) {
         if (row.status === 'over') alerts.push({ key: `over-${row.categoryId}`, level: 'warn', kind: 'overBudget', row });
         else if (row.status === 'ahead') alerts.push({ key: `ahead-${row.categoryId}`, level: 'info', kind: 'aheadOfPace', row });
-    }
-    for (const debt of model.debts) {
-        alerts.push({ key: `debt-${debt.id}`, level: debt.debt.certainty === 'possible' ? 'info' : 'warn', kind: 'debt', debt });
     }
     for (const clash of bigPurchaseClashes(doc, model.settings.bigPurchaseLimit)) {
         alerts.push({ key: `clash-${clash.month}`, level: 'warn', kind: 'bigClash', clash });
