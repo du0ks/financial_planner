@@ -27,3 +27,12 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Personal financial data: backups, exports, seed files. Never commit these.
+prosperity_backup_*.json
+prosperity_seed*.json
+*.seed.json
+seed/
+exports/
+*.csv
+*.xlsx
