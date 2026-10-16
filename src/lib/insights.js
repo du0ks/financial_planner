@@ -236,9 +236,10 @@ export function buildAlerts(model, todayDate, context = {}) {
 }
 
 /** Interest and fees recorded on cards in a date range, in the display currency. */
-export function cardFees(doc, fromDate, toDate, currency, fx, categoryId = 'cat_fees') {
+export function cardFees(doc, fromDate, toDate, currency, fx, { categoryId = 'cat_fees', accountId } = {}) {
     return sumMinor(list(doc, 'tx')
         .filter((tx) => tx.type === 'expense' && tx.categoryId === categoryId && !tx.skipped && tx.date >= fromDate && tx.date <= toDate)
+        .filter((tx) => !accountId || tx.accountId === accountId)
         .map((tx) => txAmountIn(tx, currency, doc, fx)));
 }
 

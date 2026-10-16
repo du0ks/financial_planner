@@ -61,7 +61,7 @@ export function parseDecimal(input, maxDecimals = 2) {
     if (input instanceof Big) return input;
     if (typeof input === 'number') return Number.isFinite(input) ? new Big(input) : null;
 
-    let text = String(input).trim().replace(/[\s  ']/g, '');
+    let text = String(input).trim().replace(/[\s\u00a0\u202f']/g, '');
     const negative = /^-|^\(.*\)$/.test(text);
     text = text.replace(/[^\d.,]/g, '');
     if (!/\d/.test(text)) return null;
@@ -182,7 +182,9 @@ export function formatNumber(value, fractionDigits = 2) {
 }
 
 export function formatPercent(value, fractionDigits = 1, { signed = false } = {}) {
-    const n = Number(value);
+    // Round first so a tiny negative doesn't print as "-0%".
+    const factor = 10 ** (fractionDigits + 2);
+    const n = Math.round(Number(value) * factor) / factor || 0;
     const text = new Intl.NumberFormat(numberLocale, { style: 'percent', minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits })
         .format(n);
     return signed && n > 0 ? `+${text}` : text;

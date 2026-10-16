@@ -369,8 +369,7 @@ export function restore(incoming) {
 }
 
 export function syncNow() {
-    if (state.dirty) push();
-    else pull();
+    return state.dirty ? push() : pull();
 }
 
 export function legacyBackupFor(userId) {

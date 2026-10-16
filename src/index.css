@@ -1,76 +1,110 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
 
-/* Tailwind v4 reads font families for its `font-*` utilities from an @theme block —
-   this project has no @config pointing at tailwind.config.js, so that file's `theme`
-   key is never read. Overriding --font-mono here is what makes `font-mono` (used
-   throughout the Neon Grid redesign for numbers, labels and buttons) resolve to
-   IBM Plex Mono instead of Tailwind's default monospace stack. */
+/* Design tokens. One dark theme; colors carry meaning:
+   neon (cyan)  = money you have / positive
+   hot (pink)   = debt, spending, negative
+   gold (amber) = gold and warnings */
 @theme {
-    --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
-}
-
-:root {
     --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-    --font-display: 'Outfit', sans-serif;
+    --font-display: 'Outfit', 'Inter', sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+
+    --color-bg: #07050e;
+    --color-panel: #0d0a1a;
+    --color-field: #060410;
+    --color-raised: #151028;
+    --color-line: rgba(255, 255, 255, 0.13);
+    --color-line-strong: rgba(255, 255, 255, 0.24);
+    --color-neon: #7ee9ff;
+    --color-hot: #ff5fb4;
+    --color-gold: #ffc861;
+    --color-good: #7dffb0;
+    --color-body: #e2e0f7;
+    --color-muted: #bab8d8;
+    --color-dim: #8f8cb0;
 }
 
 html,
 body {
     margin: 0;
-    padding: 0;
     min-height: 100vh;
-    /* Neon Grid base background — the app shell (Layout.jsx) sits on top of this. */
-    background-color: #050409;
-
-    /* Cross-browser Font Smoothing Harmonization */
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    text-rendering: optimizeLegibility;
+    background-color: var(--color-bg);
+    color: var(--color-body);
     font-family: var(--font-sans);
-}
-
-/* Force standard font rendering for Firefox */
-* {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-}
-
-h1,
-h2,
-h3,
-h4,
-.font-display {
-    font-family: var(--font-display);
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
 }
 
 #root {
     min-height: 100vh;
 }
 
-/* Hide Spinners in Number Inputs */
+button {
+    cursor: pointer;
+}
+
+button:disabled {
+    cursor: default;
+}
+
+input,
+select,
+textarea {
+    font: inherit;
+    color: inherit;
+}
+
+/* 16px minimum on inputs stops iOS zooming in on focus. */
+input,
+select,
+textarea {
+    font-size: max(16px, 1em);
+}
+
+select option {
+    background: var(--color-panel);
+    color: #fff;
+}
+
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
     -webkit-appearance: none;
     margin: 0;
 }
 
-input[type=number] {
-    -moz-appearance: textfield;
+input[type='date']::-webkit-calendar-picker-indicator {
+    filter: invert(0.8);
 }
 
-.animate-fade-in {
-    animation: fadeIn 0.4s ease-out forwards;
+.tabular {
+    font-variant-numeric: tabular-nums;
 }
 
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(8px);
-    }
+.safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+}
 
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+.safe-top {
+    padding-top: env(safe-area-inset-top);
+}
+
+@keyframes sheet-in {
+    from { transform: translateY(24px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.sheet-in {
+    animation: sheet-in 0.18s ease-out;
+}
+
+@keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.fade-in {
+    animation: fade-in 0.2s ease-out;
 }

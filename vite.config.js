@@ -10,11 +10,11 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg', 'vite.svg'],
       manifest: {
-        name: 'Prosperity Planner',
+        name: 'Prosperity',
         short_name: 'Prosperity',
-        description: 'Advanced Personal Financial Tracker',
-        theme_color: '#064e3b', // Deep emerald
-        background_color: '#000000', // Matches splash screen
+        description: 'Personal finances across accounts, cards, currencies and gold',
+        theme_color: '#07050e',
+        background_color: '#07050e',
         display: 'standalone',
         orientation: 'portrait',
         icons: [
@@ -30,6 +30,15 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}'],
         runtimeCaching: [
+          {
+            // Historical rates never change once published; today's are refreshed when online.
+            urlPattern: /^https:\/\/(cdn\.jsdelivr\.net\/npm\/@fawazahmed0|[\w.-]*currency-api\.pages\.dev)\/.*/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'fx-rates',
+              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 365 }
+            }
+          },
           {
             urlPattern: /^https:\/\/api\.gold-api\.com\/.*/i,
             handler: 'NetworkFirst',

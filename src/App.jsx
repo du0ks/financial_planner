@@ -1,113 +1,107 @@
-import React, { useState, useEffect } from 'react';
-import Layout from './components/Layout';
-import Dashboard from './pages/Dashboard';
-import HistoryView from './pages/HistoryView';
-import InvestmentsView from './pages/InvestmentsView';
-// Planner tab is paused — still WIP, not ready to ship. Uncomment along with the
-// 'planner' case below and its entry in Layout.jsx's NAV_TABS to bring it back.
-// import PlannerView from './pages/PlannerView';
-import SettingsView from './pages/SettingsView';
-// Spending tab is paused for a few months while it's reworked. Uncomment along with the
-// 'expenses' case below and its entry in Layout.jsx's NAV_TABS to bring it back.
-// import ExpensesView from './pages/ExpensesView';
-import AuthView from './pages/AuthView';
-import useFinanceData from './hooks/useFinanceData';
-import { supabase } from './utils/supabase';
-import ThemeColorObserver from './components/ThemeColorObserver';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { supabase } from './state/supabase';
+import { resetDemo, start, stop } from './state/store';
+import { startMarket } from './state/market';
+import { useStoreState } from './state/hooks';
+import FxFreezer from './state/FxFreezer';
+import { getSetting } from './lib/doc';
+import { setNumberLocale } from './lib/money';
+import Layout from './ui/Layout';
+import { SheetHost } from './ui/sheets';
+import { Button, Toaster } from './ui/kit';
+import AuthScreen from './screens/AuthScreen';
+import MoneyScreen from './screens/MoneyScreen';
+import S from './i18n/strings';
 
-function App() {
-    const [activeTab, setActiveTab] = useState('dashboard');
-    const [session, setSession] = useState(null);
-    const [authLoading, setAuthLoading] = useState(true);
+const screens = {
+    spend: lazy(() => import('./screens/SpendScreen')),
+    plan: lazy(() => import('./screens/PlanScreen')),
+    gold: lazy(() => import('./screens/GoldScreen')),
+    insights: lazy(() => import('./screens/InsightsScreen')),
+    settings: lazy(() => import('./screens/SettingsScreen')),
+};
 
-    useEffect(() => {
-        // Get initial session
-        supabase.auth.getSession()
-            .then(({ data: { session } }) => {
-                setSession(session);
-            })
-            .catch(err => {
-                console.error("Auth initialization failed:", err);
-            })
-            .finally(() => {
-                setAuthLoading(false);
-            });
+const TAB_KEY = 'pv5-tab';
+const readTab = () => { try { return window.localStorage.getItem(TAB_KEY) || 'money'; } catch { return 'money'; } };
 
-        // Listen for changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            setSession(session);
-        });
+function Loading({ text = S.app.loading }) {
+    return <div className="flex min-h-screen items-center justify-center font-mono text-[14px] text-dim">{text}</div>;
+}
 
-        return () => subscription.unsubscribe();
-    }, []);
+function Signed({ session }) {
+    const state = useStoreState();
+    const [tab, setTab] = useState(readTab);
+    const locale = getSetting(state.doc, 'numberLocale', '');
 
-    const handleDemoLogin = () => {
-        // Clear all demo data so it starts fresh every time
-        Object.keys(localStorage).forEach(key => {
-            if (key.startsWith('demo_')) {
-                localStorage.removeItem(key);
-            }
-        });
+    useEffect(() => { setNumberLocale(locale || navigator.language); }, [locale]);
 
-        setSession({
-            user: { email: 'demo@prosperity.app', id: 'demo-user' },
-            isDemo: true
-        });
+    const changeTab = (next) => {
+        setTab(next);
+        window.scrollTo(0, 0);
+        try { window.localStorage.setItem(TAB_KEY, next); } catch { /* ignore */ }
     };
 
-    const financeData = useFinanceData(session);
-
-    if (authLoading) {
+    if (state.bootError && !state.ready) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
-                <ThemeColorObserver />
-                <div className="animate-pulse flex flex-col items-center">
-                    <div className="w-12 h-12 bg-green-500 rounded-2xl mb-4"></div>
-                    <div className="h-4 w-32 bg-gray-200 dark:bg-gray-800 rounded"></div>
-                </div>
+            <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+                <p className="max-w-md text-[15px] text-body">{S.app.bootError(state.bootError)}</p>
+                <Button variant="primary" onClick={() => start(session)}>{S.app.retry}</Button>
             </div>
         );
     }
+    if (!state.ready) return <Loading />;
 
-    if (!session) {
-        return <AuthView onDemoLogin={handleDemoLogin} />;
-    }
-
-    const renderContent = () => {
-        switch (activeTab) {
-            case 'dashboard':
-                return <Dashboard data={financeData} />;
-            case 'investments':
-                return <InvestmentsView data={financeData} />;
-            // case 'expenses':
-            //     return <ExpensesView session={session} />;
-            case 'history':
-                return <HistoryView data={financeData} />;
-            // case 'planner':
-            //     return <PlannerView data={financeData} />;
-            case 'settings':
-                return <SettingsView data={financeData} session={session} />;
-            default:
-                return <Dashboard data={financeData} />;
-        }
-    };
-
+    const Screen = screens[tab];
     return (
-        <>
-            <ThemeColorObserver />
-            <Layout
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
-                currency={financeData.currency}
-                onToggleCurrency={financeData.toggleCurrency}
-                userEmail={session.user.email}
-                syncState={financeData.syncState}
-                lastSyncedAt={financeData.lastSyncedAt}
-            >
-                {renderContent()}
-            </Layout>
-        </>
+        <Layout tab={tab} onTab={changeTab} email={session.user.email}>
+            <FxFreezer />
+            {Screen ? (
+                <Suspense fallback={<Loading />}>
+                    <Screen session={session} />
+                </Suspense>
+            ) : <MoneyScreen />}
+            <SheetHost />
+            <Toaster />
+        </Layout>
     );
 }
 
-export default App;
+export default function App() {
+    const [session, setSession] = useState(null);
+    const [authReady, setAuthReady] = useState(false);
+
+    useEffect(() => {
+        startMarket();
+        supabase.auth.getSession()
+            .then(({ data }) => setSession(data.session))
+            .catch((error) => console.error('Auth failed to start', error))
+            .finally(() => setAuthReady(true));
+        // Supabase emits a fresh session object on token refresh; only a different user (or
+        // signing out) should restart the store.
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, next) => {
+            if (event === 'SIGNED_OUT') { setSession(null); return; }
+            setSession((current) => (current?.isDemo ? current : (current?.user?.id === next?.user?.id ? current : next)));
+        });
+        return () => subscription.unsubscribe();
+    }, []);
+
+    const userKey = session?.isDemo ? 'demo' : session?.user?.id || null;
+    useEffect(() => {
+        if (session) start(session);
+        else stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- restart only when the user changes
+    }, [userKey]);
+
+    if (!authReady) return <Loading />;
+    if (!session) {
+        return (
+            <AuthScreen onDemo={() => {
+                resetDemo();
+                setSession({ user: { id: 'demo', email: 'demo@prosperity.app' }, isDemo: true });
+            }} />
+        );
+    }
+    return (
+        <Signed session={session} />
+    );
+}

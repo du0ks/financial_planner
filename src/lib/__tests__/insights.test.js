@@ -107,5 +107,6 @@ describe('planning', () => {
         let doc = build();
         doc = put(doc, 'tx', { id: 'int', type: 'expense', categoryId: 'cat_fees', amount: 94100, currency: 'TRY', date: '2026-10-20', accountId: 'card' }, 1);
         expect(cardFees(doc, '2026-01-01', '2026-12-31', 'TRY', { rates })).toBe(94100);
+        expect(cardFees(doc, '2026-01-01', '2026-12-31', 'TRY', { rates }, { accountId: 'wise' })).toBe(0);
     });
 });
