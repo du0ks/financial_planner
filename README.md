@@ -33,9 +33,9 @@ Security comes from Row Level Security on `public.user_data`, not from hiding th
 - **Sync** (`src/state/store.js`): local first. A save is a compare-and-swap on the row's
   `updated_at`; if another device saved first, the documents merge record by record and
   the merge is saved. Offline edits stay on the device and go up when the connection is back.
-- The pre-v5 columns (`cards`, `funds`, `others`, `history`, `gold_grams`) are no longer
-  written: they remain as the untouched pre-upgrade copy, also stored in
-  `extended_data.legacyBackup` and downloadable from Settings.
+- Data from before v5 is not carried over. The old columns (`cards`, `funds`, `others`,
+  `history`, `gold_grams`) are written empty on every save; old localStorage keys are
+  removed on start.
 
 ## Market data
 
