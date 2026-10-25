@@ -212,3 +212,26 @@ button.p-line span {
   min-width: 0;
   flex: 1;
 }
+
+/* Home: the period's entries, a quiet link under Available now */
+.p-entries {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px auto 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  color: var(--on-surface-variant);
+}
+.p-entries .ic {
+  width: 18px;
+  height: 18px;
+}
+/* every budget bar as wide as its row */
+.p-brow .mid .bar.p-bar {
+  width: 100%;
+}
+.p-brow .a {
+  min-width: 6.5rem;
+}

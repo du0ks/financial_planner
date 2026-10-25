@@ -252,8 +252,7 @@ function ringHTML(cats, o) {
     Math.max(11, Math.min(22, D * 0.11, (0.62 * D) / (Math.max(3, String(txt).length) * 0.6))).toFixed(1) + "px";
   let center;
   if (home) {
-    const cs = currencies(),
-      mode = S.settings.donut;
+    const mode = S.settings.donut;
     /* what the middle shows (Settings: tap the donut): spent, received, both, or nothing; the ring itself never changes */
     const big = (n, cls, sign) =>
       '<div class="s' +
@@ -281,16 +280,7 @@ function ringHTML(cats, o) {
       donut +
       '<div class="dcenter">' +
       mid +
-      (cs.length > 1 ? '<span class="curbtn" data-act="cur-next" aria-hidden="true">' + esc(o.cur) + " ⇄</span>" : "") +
-      "</div></button>" +
-      /* the same switch for screen readers and keyboards, as a button of its own (not one inside the donut's) */
-      (cs.length > 1
-        ? '<button class="vh" data-act="cur-next">Showing ' +
-          esc(o.cur) +
-          ". Switch to " +
-          esc(cs[(cs.indexOf(o.cur) + 1) % cs.length]) +
-          "</button>"
-        : "");
+      "</div></button>"; // Prosperity: one everyday currency, so no currency switch here
   } else {
     RE = { L, order: cats.map(c => c.id) };
     center =

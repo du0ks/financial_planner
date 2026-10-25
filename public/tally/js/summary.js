@@ -20,9 +20,9 @@ const weekStart = d => addDays(d, -((parseISO(d).getDay() - S.settings.week + 7)
 function summarySheet() {
   const [, e] = range(),
     t = today();
-  SM = { mode: V.period === "month" ? "m" : "d", end: e > t ? t : e, sel: null, cur: viewCur() };
+  SM = { mode: V.period === "month" ? "m" : "d", end: e > t ? t : e, sel: null, cur: pCur() };
   openSheet(
-    "Spending" + (currencies().length > 1 ? " · " + SM.cur : ""),
+    "Spending · " + SM.cur,
     '<div class="seg">' +
       [
         ["d", "Days"],
@@ -76,7 +76,8 @@ function smBuckets() {
       });
     }
   }
-  const sp = S.txns.filter(x => isSpend(x) && inCur(x, SM.cur));
+  /* Prosperity: every currency, each entry at its own day's rate in the everyday currency */
+  const sp = S.txns.filter(isSpend).map(x => Object.assign({}, x, { amount: pIn(x) }));
   out.forEach(b => {
     b.list = sp.filter(x => x.date >= b.s && x.date <= b.e);
     b.v = rnd(b.list.reduce((q, x) => q + x.amount, 0));

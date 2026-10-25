@@ -486,12 +486,14 @@ function pickMainCur(next) {
   curPicker(
     S.settings.cur,
     c => {
+      const was = S.settings.cur;
       S.settings.cur = c;
       V.cur = null;
       commit();
+      if (was && was !== c) pEverydayChanged(was, c); // Prosperity: offer to move budgets (p-app.js)
       if (next) next();
     },
-    S.settings.cur ? "Main currency" : "Your currency"
+    "Everyday currency"
   );
 }
 function accForm(id) {

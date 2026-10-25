@@ -80,6 +80,71 @@ const pMonthNow = () => today().slice(0, 7);
 const approx = (n, cur) => "≈ " + money(n, cur);
 /* the currency an entry is in: its account's */
 const pTxCur = t => (acc(t.account) || {}).currency;
+/* an entry's amount in the everyday currency, at the rate of its own day (0 while that rate is unknown) */
+function pIn(t) {
+  const c = pTxCur(t),
+    cur = pCur();
+  if (!c || c === cur) return t.amount;
+  const v = pConv(t.amount, c, cur, pRatesOn(pRates(), S.fxDays, t.date));
+  return v === null ? 0 : v;
+}
+
+/* The everyday currency changed: budgets set in the old one would now move with the rate every day, so offer to
+   turn them into the new currency once, at today's rate, rounded to whole units. */
+function pEverydayChanged(was, now) {
+  const old = Object.entries(pBudgets()).filter(([, b]) => b.currency !== now);
+  if (!old.length) return;
+  if (!pRates()) return snack("Budgets stay in " + was + " until rates load");
+  askDialog(
+    "Budgets in " + now + "?",
+    old.length + (old.length === 1 ? " budget is" : " budgets are") + " in another currency. Convert " + (old.length === 1 ? "it" : "them") +
+      " to " + now + " at today's rate, rounded?",
+    "Convert",
+    () => {
+      old.forEach(([cat, b]) => {
+        const v = pConv(b.amount, b.currency, now, pRates());
+        if (v !== null) pBudgets()[cat] = { amount: Math.max(1, Math.round(v)), currency: now };
+      });
+      commit();
+      snack("Budgets are in " + now);
+    },
+    { cancel: "Keep as they are" }
+  );
+}
+
+/* Entries written for an earlier day get that day's published rates (once), so they count at what the money was
+   worth then. Runs after saves and when rates arrive; a day that can't be fetched is tried again next time. */
+const pTried = new Set();
+let pFilling = false;
+async function pFillRates() {
+  if (pFilling || !pRates()) return;
+  pFilling = true;
+  try {
+    const t = today(),
+      since = addDays(t, -400),
+      codes = [...new Set([pCur(), "USD"].concat(S.accounts.map(a => a.currency)))],
+      days = [...new Set(S.txns.map(x => x.date))].filter(d => d < t && d >= since && !(S.fxDays || {})[d] && !pTried.has(d)).slice(0, 20);
+    let got = 0;
+    for (const d of days) {
+      pTried.add(d);
+      const r = await pFetchDay(d);
+      if (!r) continue;
+      const day = {};
+      codes.forEach(c => {
+        if (r[c]) day[c] = r[c];
+      });
+      S.fxDays = S.fxDays || {};
+      S.fxDays[d] = day;
+      got++;
+    }
+    if (got) {
+      save();
+      if (!$("#sheet").innerHTML) render();
+    }
+  } finally {
+    pFilling = false;
+  }
+}
 
 /* Each day's rates are kept with the data the first time something is saved that day, so this month's spending,
    added up in your main currency, doesn't change when rates move tomorrow. Only the currencies in use. */
@@ -103,6 +168,7 @@ const tallyCommit = commit;
 commit = function () {
   pFreezeToday();
   tallyCommit();
+  setTimeout(pFillRates, 0);
 };
 
 /* everything the screens show, worked out once per render */
@@ -168,14 +234,7 @@ homeView = function () {
       "Add first account</button>",
       'Add first account</button><div class="gap"></div><button class="btn tonal" data-act="p-demo">Try it with sample data</button>'
     );
-  const m = pModel();
-  const avail =
-    '<button class="balbar p-avail" data-act="p-chain">' +
-    ic("wallet") +
-    '<span class="l">Available now</span><b>' +
-    esc(money(m.w.availableNow, m.cur)) +
-    "</b></button>";
-  return h.replace('<button class="balbar"', avail + '<button class="balbar"').replace("Lend</button></div>", "Lend</button></div>" + pWaiting(m));
+  return h.replace("Lend</button></div>", "Lend</button></div>" + pWaiting(pModel()));
 };
 /* recurring income and bills waiting to be confirmed */
 function pWaiting(m) {
@@ -220,7 +279,7 @@ const P_STEP = {
   owe: "Loans I owe",
   netWorth: "Net worth",
   goldUntouchable: "Untouchable gold",
-  investments: "Investments & savings",
+  investments: "Savings & reserves",
   other: "Other things & money owed to me",
   bills: "Bills before next income",
   availableNow: "Available now",
@@ -293,6 +352,23 @@ function pBudgetFor(month) {
   });
 }
 const P_STATUS = { ok: "", ahead: "spending fast", tight: "bills take it over", over: "over budget" };
+/* Exchanging money costs more than the fee: what arrived is less than the sent amount was worth at that day's
+   market rate. The difference over a month's transfers between currencies, in the everyday currency. */
+function pFxLoss(month) {
+  const cur = pCur();
+  let loss = 0;
+  S.txns.forEach(t => {
+    if (t.type !== "transfer" || t.toAmount == null || t.date.slice(0, 7) !== month) return;
+    const a = acc(t.account),
+      b = acc(t.to);
+    if (!a || !b || a.currency === b.currency) return;
+    const rates = pRatesOn(pRates(), S.fxDays, t.date),
+      worth = pConv(t.amount, a.currency, b.currency, rates);
+    if (worth === null) return;
+    loss += pConv(worth - t.toAmount, b.currency, cur, rates) || 0;
+  });
+  return pRound(loss, cur);
+}
 function budgetView() {
   const cur = pCur(),
     month = V.bm || pMonthNow(),
@@ -319,12 +395,19 @@ function budgetView() {
   if (b.coming) lines.push(money(b.coming, cur) + " in bills still to come");
   if (current && b.perDay) lines.push("About " + money(b.perDay, cur) + " a day for the " + b.daysLeft + (b.daysLeft === 1 ? " day" : " days") + " left");
   if (b.unbudgeted) lines.push(money(b.unbudgeted, cur) + " spent without a budget");
+  /* a balance fixed downwards is money that went somewhere no entry says: it is in no budget */
+  const fixes = -S.txns.filter(t => t.type === "adjust" && t.amount < 0 && t.date.slice(0, 7) === month).reduce((q, t) => q + pIn(t), 0);
+  if (fixes > 0) lines.push(money(fixes, cur) + " went in balance fixes, outside any budget");
+  const fxLoss = pFxLoss(month);
+  if (fxLoss >= 1) lines.push("≈ " + money(fxLoss, cur) + " lost to exchange rates on transfers (worse than the market rate)");
   if (b.unassigned !== null && b.total)
     lines.push(
       b.unassigned >= 0
-        ? "Income " + money(b.total + b.unassigned, cur) + " · " + money(b.unassigned, cur) + " not given a budget"
+        ? "Income " + money(b.total + b.unassigned, cur) + " · " + money(b.unassigned, cur) + " left after all budgets"
         : "Budgets are " + money(-b.unassigned, cur) + " more than this month's income"
     );
+  const avail = pModel().w.availableNow;
+  if (current && b.left > 0 && avail < b.left) lines.push("Only " + money(Math.max(0, avail), cur) + " is available now: less than the budget left");
   h +=
     '<div class="sumcard' +
     (over ? " owe" : "") +
@@ -522,8 +605,10 @@ assetsView = function () {
       ? '<div class="list">' + sub("Touchable", m.w.goldTouchable, touch) + sub("Untouchable", m.w.goldUntouchable, keep) + "</div>"
       : pEmpty("Gold in grams, valued at today's spot price. Touchable gold counts as money you can use."));
   let right =
-    pSecHead("Investments & savings", money(g.investments.total, cur), "p-addsav", "", "Add a savings or investment account") +
-    (g.investments.items.length ? list(g.investments.items) : pEmpty("Savings or a fund you don't count as money you can use."));
+    pSecHead("Savings & reserves", money(g.investments.total, cur), "p-addsav", "", "Add a savings account or reserve") +
+    (g.investments.items.length
+      ? list(g.investments.items)
+      : pEmpty("Money you keep and don't spend from: a fund, savings, a currency you hold. Turn off “Counts as money I can use” on any account to put it here."));
   right +=
     pSecHead("Other things & money owed to me", money(g.other.total, cur), "p-addother", "", "Add something you own or money you lent") +
     (g.other.items.length ? list(g.other.items) : pEmpty("Things you own, like a laptop, and money you lent."));
@@ -747,7 +832,7 @@ accOpen = function (id) {
   const extra =
     a.type === "card"
       ? (balances()[id] < 0 ? '<div class="gap"></div><button class="btn" data-act="p-pay" data-v="' + a.id + '">' + ic("swap") + "Pay card</button>" : "")
-      : '<div class="list" style="margin-top:12px"><div class="setrow"><span class="mid"><div>Counts as money I can use</div><div class="s">Off for savings you don’t touch, like a fund</div></span><button class="sw" role="switch" data-act="p-avail" data-v="' +
+      : '<div class="list" style="margin-top:12px"><div class="setrow"><span class="mid"><div>Counts as money I can use</div><div class="s">Off for money you keep: savings, a fund, a currency you hold</div></span><button class="sw" role="switch" data-act="p-avail" data-v="' +
         a.id +
         '" aria-checked="' +
         pAvail(a) +
@@ -810,25 +895,55 @@ function pDemo() {
   else go();
 }
 function pDemoState() {
+  /* someone paid in TRY who lives on CZK: salary lands at Ziraat, goes to Wise as CZK (with a fee), and is spent
+     there; EUR is kept aside; gold in two parts. Everyday currency CZK, so budgets are in CZK. */
   const t = today(),
     d = n => addDays(t, n),
     m = pMonthNow(),
     prev = pAddMonths(m, -1),
+    day = (mo, n) => mo + "-" + String(n).padStart(2, "0"),
+    past = n => n < +t.slice(8, 10), // this month's day n is already behind us
     ts = n => Date.now() - n * 1000,
     account = (id, name, type, currency, opening, extra) => Object.assign({ id, name, type, currency, opening, archived: false }, extra || {});
-  const budget = (amount, currency) => ({ amount, currency: currency || "TRY" });
+  const txns = [],
+    add = x => txns.push(Object.assign({ ts: ts(500 - txns.length) }, x));
+  /* each month: salary, the transfer to Wise with its fee, dorm, AI subscription on the card */
+  [prev, m].forEach((mo, i) => {
+    const k = i ? "c" : "p";
+    if (!i || past(1)) add({ id: k + "sal", date: day(mo, 1), type: "income", amount: 45000, account: "ziraat", cat: "income", note: "Salary", rule: "salary", rmonth: mo });
+    if (!i || past(2)) {
+      add({ id: k + "tr", date: day(mo, 2), type: "transfer", amount: 30000, account: "ziraat", to: "wisecz", toAmount: 13020, note: "To Wise", feeId: k + "fee" });
+      add({ id: k + "fee", date: day(mo, 2), type: "expense", amount: 120, account: "ziraat", cat: "fees", note: "Transfer fee", feeOf: k + "tr" });
+    }
+    if (!i || past(20)) add({ id: k + "dorm", date: day(mo, 20), type: "expense", amount: 6300, account: "wisecz", cat: "housing", note: "Dorm", rule: "dorm", rmonth: mo });
+    if (!i || past(28)) add({ id: k + "ai", date: day(mo, 28), type: "expense", amount: 990.08, account: "zcard", cat: "bills", note: "AI subscription ($20.00)", rule: "ai", rmonth: mo });
+  });
+  [
+    [-9, 389.9, "wisecz", "groceries", "Albert"],
+    [-6, 612.4, "wisecz", "groceries", "Lidl"],
+    [-5, 185, "czkcash", "food", "Canteen"],
+    [-4, 250, "wisecz", "health", "Pharmacy"],
+    [-3, 452.3, "wisecz", "groceries", "Kaufland"],
+    [-2, 165, "czkcash", "food", "Canteen"],
+    [-1, 1240, "zcard", "shopping", "Headphones case"],
+    [0, 49, "czkcash", "transport", "Tram"],
+    [0, 129.9, "wisecz", "groceries", "Lidl"],
+  ].forEach(([n, amount, account, cat, note], i) => add({ id: "e" + i, date: d(n), type: "expense", amount, account, cat, note }));
+  add({ id: "l1", date: d(-12), type: "loan", amount: 3400, account: "wisecz", dir: "in", loan: "fridge", principal: true });
+  add({ id: "l2", date: d(-6), type: "loan", amount: 2000, account: "ziraat", dir: "out", loan: "lent", principal: true, due: d(20) });
+  const budget = amount => ({ amount, currency: "CZK" });
   return {
     v: 6,
-    settings: { cur: "TRY", week: 1, clock: "24", lastCheck: t },
+    settings: { cur: "CZK", week: 1, clock: "24", lastCheck: t },
     accounts: [
-      account("ziraat", "Ziraat", "bank", "TRY", 2450.75),
+      account("ziraat", "Ziraat", "bank", "TRY", 32450.75),
       account("zcard", "Ziraat card", "card", "TRY", -12380.4),
       account("icard", "İş card", "card", "TRY", -4250),
-      account("wisecz", "Wise CZK", "wallet", "CZK", 19420.5),
-      account("wiseeu", "Wise EUR", "wallet", "EUR", 310),
-      account("eurcash", "EUR cash", "cash", "EUR", 400),
+      account("wisecz", "Wise CZK", "wallet", "CZK", 1820.5),
       account("czkcash", "CZK cash", "cash", "CZK", 1250),
-      account("fund", "Mutual fund", "savings", "TRY", 25000, { avail: false }),
+      account("wiseeu", "Wise EUR", "wallet", "EUR", 1310, { avail: false }),
+      account("eurcash", "EUR cash", "cash", "EUR", 400, { avail: false }),
+      account("fund", "Mutual fund", "savings", "TRY", 25000),
     ],
     assets: [
       { id: "g1", name: "Bracelet", kind: "gold", mg: 5000, touch: true, value: 0, currency: "TRY", i: "diamond", c: "#b8860b" },
@@ -840,46 +955,16 @@ function pDemoState() {
       { id: "ai", type: "expense", name: "AI subscription", amount: 20, currency: "USD", account: "zcard", cat: "bills", day: 28, start: prev },
     ],
     budgets: {
-      groceries: budget(4000, "CZK"),
-      food: budget(2500),
-      transport: budget(1500),
-      housing: budget(15000),
-      bills: budget(1500),
-      shopping: budget(2000),
-      fun: budget(1000),
+      groceries: budget(4000),
+      food: budget(1500),
+      transport: budget(600),
+      housing: budget(6500),
+      bills: budget(500),
+      shopping: budget(1000),
+      fun: budget(800),
+      fees: budget(150),
     },
-    txns: [
-      { id: "s1", ts: ts(90), date: prev + "-01", type: "income", amount: 45000, account: "ziraat", cat: "income", note: "Salary", rule: "salary", rmonth: prev },
-      { id: "s2", ts: ts(89), date: prev + "-20", type: "expense", amount: 6300, account: "wisecz", cat: "housing", note: "Dorm", rule: "dorm", rmonth: prev },
-      { id: "s3", ts: ts(88), date: prev + "-28", type: "expense", amount: 990.08, account: "zcard", cat: "bills", note: "AI subscription ($20.00)", rule: "ai", rmonth: prev },
-      /* this month's recurring entries that are already past are confirmed, so only what's ahead waits on Home */
-      ...[
-        ["salary", "income", 45000, "ziraat", "income", 1, "Salary"],
-        ["dorm", "expense", 6300, "wisecz", "housing", 20, "Dorm"],
-        ["ai", "expense", 990.08, "zcard", "bills", 28, "AI subscription ($20.00)"],
-      ]
-        .filter(r => r[5] < +t.slice(8, 10))
-        .map(([rule, type, amount, acc, cat, day, note], i) => ({
-          id: "c" + i,
-          ts: ts(60 - i),
-          date: m + "-" + String(day).padStart(2, "0"),
-          type,
-          amount,
-          account: acc,
-          cat,
-          note,
-          rule,
-          rmonth: m,
-        })),
-      { id: "e1", ts: ts(50), date: d(-3), type: "expense", amount: 452.3, account: "wisecz", cat: "groceries", note: "Albert" },
-      { id: "e2", ts: ts(40), date: d(-2), type: "expense", amount: 185, account: "czkcash", cat: "food", note: "Canteen" },
-      { id: "e3", ts: ts(30), date: d(-1), type: "expense", amount: 1240, account: "zcard", cat: "shopping", note: "Headphones case" },
-      { id: "e4", ts: ts(20), date: t, type: "expense", amount: 38.5, account: "wiseeu", cat: "transport", note: "Train" },
-      { id: "e5", ts: ts(10), date: t, type: "expense", amount: 129.9, account: "wisecz", cat: "groceries", note: "Lidl" },
-      { id: "e6", ts: ts(15), date: d(-5), type: "expense", amount: 650, account: "ziraat", cat: "health", note: "Pharmacy" },
-      { id: "l1", ts: ts(80), date: d(-12), type: "loan", amount: 3400, account: "wisecz", dir: "in", loan: "fridge", principal: true },
-      { id: "l2", ts: ts(70), date: d(-6), type: "loan", amount: 2000, account: "ziraat", dir: "out", loan: "lent", principal: true, due: d(20) },
-    ],
+    txns,
     loans: [
       { id: "fridge", ts: ts(80), kind: "borrow", person: "Roommate", account: "wisecz", date: d(-12), note: "Fridge", status: "open" },
       { id: "lent", ts: ts(70), kind: "lend", person: "Friend", account: "ziraat", date: d(-6), note: "", status: "open" },

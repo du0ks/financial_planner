@@ -60,9 +60,21 @@ async function pRefreshFx() {
       } catch (e) {}
       if (!$("#sheet").innerHTML) render(); // an open sheet isn't redrawn under the user's fingers
     }
+    if (typeof pFillRates === "function") pFillRates();
   } finally {
     pfxBusy = false;
   }
+}
+/* the rates published for one past day ("YYYY-MM-DD"), or null */
+async function pFetchDay(d) {
+  const j = await pFetchJson([
+    "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@" + d + "/v1/currencies/usd.min.json",
+    "https://" + d + ".currency-api.pages.dev/v1/currencies/usd.min.json",
+  ]);
+  if (!j || !j.usd) return null;
+  const r = { USD: 1 };
+  for (const [k, v] of Object.entries(j.usd)) if (typeof v === "number" && v > 0 && /^[a-z]{3}$/.test(k)) r[k.toUpperCase()] = v;
+  return r;
 }
 function pStartFx() {
   pRefreshFx();

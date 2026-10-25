@@ -114,10 +114,10 @@ function homeView() {
       '<header class="appbar"><h1>Tally</h1>' +
       topIcons() +
       "</header>" +
-      '<div class="welcome"><div class="big">📒</div><h2>Start your notebook</h2><p>Choose your currency, then add the places your money lives — bank, mobile wallet, cash — with what each has right now.</p><button class="fieldbtn" data-act="pick-maincur" aria-label="' +
+      '<div class="welcome"><div class="big">📒</div><h2>Start your notebook</h2><p>Choose the currency you spend day to day, then add the places your money lives — bank, mobile wallet, cash — in any currency, with what each has right now.</p><button class="fieldbtn" data-act="pick-maincur" aria-label="' +
       esc("Currency: " + (S.settings.cur ? curLabel(S.settings.cur) : "not chosen yet")) +
       '"><span>' +
-      esc(S.settings.cur ? curLabel(S.settings.cur) : "Choose your currency") +
+      esc(S.settings.cur ? curLabel(S.settings.cur) : "Choose your everyday currency") +
       "</span>" +
       ic("down") +
       '</button><button class="btn" data-act="acc-form">' +
@@ -126,7 +126,7 @@ function homeView() {
     );
   }
   const b = balances(),
-    cur = viewCur();
+    cur = pCur(); // Prosperity: the everyday currency; every entry converted into it (pIn)
   let h =
     '<header class="appbar"><div class="pnav"><button class="icon" data-act="prev" aria-label="Previous">' +
     ic("left") +
@@ -189,35 +189,36 @@ function homeView() {
   const top = h;
   h = "";
 
-  const pt = periodTxns().filter(t => inCur(t, cur));
+  const pt = periodTxns();
   let spent = 0,
     got = 0;
   const by = {};
   pt.forEach(t => {
     if (isSpend(t)) {
-      spent += t.amount;
-      by[t.cat] = (by[t.cat] || 0) + t.amount;
-    } else if (t.type === "income") got += t.amount;
+      spent += pIn(t);
+      by[t.cat] = (by[t.cat] || 0) + pIn(t);
+    } else if (t.type === "income") got += pIn(t);
   });
   spent = rnd(spent);
   got = rnd(got);
   const ring = ringHTML(outCats(), { mode: "home", by, spent, got, cur });
 
-  const total = balanceIn(cur, b);
   const n = periodTxns().length;
   if (!(V.period === "day" && V.anchor === today()))
     h +=
       '<div class="todayrow"><button class="todaychip" data-act="go-today" aria-label="Back to today">' +
       ic("reset") +
       "Today</button></div>";
+  /* Prosperity: one number for what you can use, in the everyday currency (how it adds up: p-app.js) */
   h +=
-    '<button class="balbar" data-act="entries">' +
-    ic("list") +
-    '<span class="l">Balance' +
-    (n ? " · " + n + " " + (n === 1 ? "entry" : "entries") : "") +
-    "</span><b>" +
-    esc(money(total, cur)) +
-    "</b></button>";
+    '<button class="balbar p-avail" data-act="p-chain">' +
+    ic("wallet") +
+    '<span class="l">Available now</span><b>' +
+    esc(money(pModel().w.availableNow, cur)) +
+    "</b></button>" +
+    (n
+      ? '<button class="p-entries" data-act="entries">' + ic("list") + n + (n === 1 ? " entry" : " entries") + " · " + esc(periodLabel()) + "</button>"
+      : "");
   h +=
     '<div class="fabs"><button class="fab minus" data-act="add-out" aria-label="Add spending">' +
     ic("remove") +
@@ -806,8 +807,8 @@ function settingsView() {
       .join("") +
     "</div>";
   h +=
-    '<div class="sec">Region</div><div class="lbl set">Main currency</div><button class="fieldbtn" data-act="pick-maincur" aria-label="' +
-    esc("Main currency: " + (S.settings.cur ? curLabel(S.settings.cur) : "not chosen yet")) +
+    '<div class="sec">Region</div><div class="lbl set">Everyday currency</div><p class="hint" style="margin:0 4px 8px">The money you spend day to day. Budgets and totals are in it; anything in another currency shows beside its own amount, converted at that day’s rate.</p><button class="fieldbtn" data-act="pick-maincur" aria-label="' +
+    esc("Everyday currency: " + (S.settings.cur ? curLabel(S.settings.cur) : "not chosen yet")) +
     '"><span>' +
     esc(S.settings.cur ? curLabel(S.settings.cur) : "Choose") +
     "</span>" +
