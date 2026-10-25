@@ -416,8 +416,7 @@ const activeAccounts = () => S.accounts.filter(a => !a.archived);
    totals, summaries and the widget count only isSpend() entries, and History shows the fee with what it was charged on.
    Its stored category ("fees") is only for older versions: Tally never files an entry under a category by itself,
    since a built-in one keeps its id when renamed into anything. */
-/* Prosperity: a fee is money gone, so it counts as spending too (in its category, Fees) */
-const isSpend = t => t.type === "expense";
+const isSpend = t => t.type === "expense" && !t.feeOf;
 /* whether entry t is in currency cur (its account's) */
 const inCur = (t, cur) => (acc(t.account) || {}).currency === cur;
 /* what was spent on day d in currency cur, and the active accounts' total in it (b: balances()) */

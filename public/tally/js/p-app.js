@@ -352,23 +352,6 @@ function pBudgetFor(month) {
   });
 }
 const P_STATUS = { ok: "", ahead: "spending fast", tight: "bills take it over", over: "over budget" };
-/* Exchanging money costs more than the fee: what arrived is less than the sent amount was worth at that day's
-   market rate. The difference over a month's transfers between currencies, in the everyday currency. */
-function pFxLoss(month) {
-  const cur = pCur();
-  let loss = 0;
-  S.txns.forEach(t => {
-    if (t.type !== "transfer" || t.toAmount == null || t.date.slice(0, 7) !== month) return;
-    const a = acc(t.account),
-      b = acc(t.to);
-    if (!a || !b || a.currency === b.currency) return;
-    const rates = pRatesOn(pRates(), S.fxDays, t.date),
-      worth = pConv(t.amount, a.currency, b.currency, rates);
-    if (worth === null) return;
-    loss += pConv(worth - t.toAmount, b.currency, cur, rates) || 0;
-  });
-  return pRound(loss, cur);
-}
 function budgetView() {
   const cur = pCur(),
     month = V.bm || pMonthNow(),
@@ -398,8 +381,6 @@ function budgetView() {
   /* a balance fixed downwards is money that went somewhere no entry says: it is in no budget */
   const fixes = -S.txns.filter(t => t.type === "adjust" && t.amount < 0 && t.date.slice(0, 7) === month).reduce((q, t) => q + pIn(t), 0);
   if (fixes > 0) lines.push(money(fixes, cur) + " went in balance fixes, outside any budget");
-  const fxLoss = pFxLoss(month);
-  if (fxLoss >= 1) lines.push("≈ " + money(fxLoss, cur) + " lost to exchange rates on transfers (worse than the market rate)");
   if (b.unassigned !== null && b.total)
     lines.push(
       b.unassigned >= 0
@@ -895,7 +876,7 @@ function pDemo() {
   else go();
 }
 function pDemoState() {
-  /* someone paid in TRY who lives on CZK: salary lands at Ziraat, goes to Wise as CZK (with a fee), and is spent
+  /* someone paid in TRY who lives on CZK: salary lands at Ziraat, goes to Wise as CZK, and is spent
      there; EUR is kept aside; gold in two parts. Everyday currency CZK, so budgets are in CZK. */
   const t = today(),
     d = n => addDays(t, n),
@@ -907,14 +888,11 @@ function pDemoState() {
     account = (id, name, type, currency, opening, extra) => Object.assign({ id, name, type, currency, opening, archived: false }, extra || {});
   const txns = [],
     add = x => txns.push(Object.assign({ ts: ts(500 - txns.length) }, x));
-  /* each month: salary, the transfer to Wise with its fee, dorm, AI subscription on the card */
+  /* each month: salary, the transfer to Wise, dorm, AI subscription on the card */
   [prev, m].forEach((mo, i) => {
     const k = i ? "c" : "p";
     if (!i || past(1)) add({ id: k + "sal", date: day(mo, 1), type: "income", amount: 45000, account: "ziraat", cat: "income", note: "Salary", rule: "salary", rmonth: mo });
-    if (!i || past(2)) {
-      add({ id: k + "tr", date: day(mo, 2), type: "transfer", amount: 30000, account: "ziraat", to: "wisecz", toAmount: 13020, note: "To Wise", feeId: k + "fee" });
-      add({ id: k + "fee", date: day(mo, 2), type: "expense", amount: 120, account: "ziraat", cat: "fees", note: "Transfer fee", feeOf: k + "tr" });
-    }
+    if (!i || past(2)) add({ id: k + "tr", date: day(mo, 2), type: "transfer", amount: 30000, account: "ziraat", to: "wisecz", toAmount: 13020, note: "To Wise" });
     if (!i || past(20)) add({ id: k + "dorm", date: day(mo, 20), type: "expense", amount: 6300, account: "wisecz", cat: "housing", note: "Dorm", rule: "dorm", rmonth: mo });
     if (!i || past(28)) add({ id: k + "ai", date: day(mo, 28), type: "expense", amount: 990.08, account: "zcard", cat: "bills", note: "AI subscription ($20.00)", rule: "ai", rmonth: mo });
   });
@@ -962,7 +940,6 @@ function pDemoState() {
       bills: budget(500),
       shopping: budget(1000),
       fun: budget(800),
-      fees: budget(150),
     },
     txns,
     loans: [
