@@ -1,0 +1,216 @@
+/*
+ * backup.js — Export (CSV), backup (JSON), restore and delete-all.
+ */
+"use strict";
+
+function exportCsv() {
+  /* quoted text; a leading = + - @ (after any spaces) gets a ' so a spreadsheet shows it instead of running it as a
+     formula */
+  const q = s =>
+    '"' +
+    String(s ?? "")
+      .replace(/^\s*[=+\-@\t\r]/, "'$&")
+      .replace(/"/g, '""') +
+    '"';
+  const kind = t =>
+    t.type === "loan"
+      ? (loan(t.loan) && loan(t.loan).kind === "lend" ? "lend" : "loan") + "-" + t.dir
+      : t.feeOf
+        ? ((S.txns.find(x => x.id === t.feeOf) || {}).type === "loan" ? "loan" : "transfer") + "-fee"
+        : t.type;
+  const lines = [
+    [
+      "date",
+      "type",
+      "amount",
+      "currency",
+      "account",
+      "to_account",
+      "to_amount",
+      "category",
+      "note",
+      "to_currency",
+      "person",
+    ].join(","),
+  ];
+  [...S.txns]
+    .sort((a, b) => a.date.localeCompare(b.date) || (a.ts || 0) - (b.ts || 0))
+    .forEach(t => {
+      const a = acc(t.account),
+        to = acc(t.to),
+        l = t.type === "loan" && loan(t.loan);
+      lines.push(
+        [
+          t.date,
+          kind(t),
+          rnd(t.amount),
+          a ? a.currency : "",
+          q(a ? a.name : ""),
+          q(to ? to.name : ""),
+          t.type === "transfer" ? rnd(t.toAmount != null ? t.toAmount : t.amount) : "",
+          q((t.type === "expense" && !t.feeOf) || t.type === "income" ? cat(t.cat).name : ""),
+          q(t.note),
+          to ? to.currency : "",
+          q(l ? l.person : ""),
+        ].join(",")
+      );
+    });
+  /* the byte-order mark tells spreadsheets (Excel) the file is UTF-8, so names in any script read right */
+  saveOut("prosperity-entries-" + today() + ".csv", "text/csv", "\ufeff" + lines.join("\n"));
+}
+/* A backup's text (a chosen file, or the auto backup): checked, then one confirmation, then it replaces everything.
+   `auto` = {when, folder} for the auto backup file, whose dialog also offers "Choose another file". */
+/* after: what follows a restore (turning auto backup on, when it came from the folder being picked) */
+/* false when the text isn't a backup that can be read */
+function restoreText(t, auto, after) {
+  let o = null,
+    n = null;
+  try {
+    o = JSON.parse(t);
+  } catch (e) {}
+  if (!o || !Array.isArray(o.accounts) || !Array.isArray(o.txns)) {
+    snack("That isn't a Prosperity backup file");
+    return false;
+  }
+  try {
+    n = migrate(o);
+  } catch (e) {
+    snack("That backup couldn't be read");
+    return false;
+  }
+  /* what will really be restored: an entry, account, loan or asset that can't be read (or on a missing account) is
+     left out, and said so */
+  const count = (k, one, many) => n[k].length + " " + (n[k].length === 1 ? one : many),
+    had = k => (Array.isArray(o[k]) ? o[k].length - n[k].length : 0),
+    lost = had("txns") + had("accounts") + had("loans") + had("assets"),
+    newer = typeof o.v === "number" && o.v > blank().v;
+  askDialog(
+    auto ? "Restore Prosperity backup.json?" : "Restore this backup?",
+    "Replaces everything on this phone with " +
+      count("accounts", "account", "accounts") +
+      " and " +
+      count("txns", "entry", "entries") +
+      (auto && auto.when ? " · saved " + backupWhen(auto.when) : "") +
+      "." +
+      (lost > 0 ? " " + lost + (lost === 1 ? " item" : " items") + " in it can't be read and will be left out." : "") +
+      (newer ? " It was made by a newer version of Prosperity: update Prosperity first so nothing is left out." : ""),
+    "Restore",
+    () => {
+      /* this phone's own set-up stays: its auto backup (the folder lives in the shell), a copy so Undo gets back what
+         was here; while the saved data couldn't be read, the stand-in's setting means nothing: the backup's own is kept */
+      const old = S;
+      if (!unreadable) n.settings.backup = { ...S.settings.backup };
+      unreadable = null; // a real notebook again: auto backup may follow it
+      S = n;
+      commit();
+      syncBackup();
+      applyTheme();
+      if (after) after();
+      snack("Backup restored", () => {
+        S = old;
+        commit();
+        syncBackup();
+        applyTheme();
+        snack("Undone");
+      });
+    },
+    auto ? { alt: ["Choose another file", pickRestoreFile] } : undefined
+  );
+}
+/* the file input (a browser without the Android shell): Settings → Restore from backup */
+function restoreFile(input) {
+  const f = input.files[0];
+  input.value = "";
+  if (!f) return;
+  f.text().then(
+    t => restoreText(t),
+    () => snack("Couldn't read that file")
+  );
+}
+/* Restore on Android: the shell reads the file itself (WebView's own File could refuse a document whose size the
+   picker reports wrongly). With auto backup on, its file first, with "Choose another file" beside it. */
+const canRestore = () => !!(window.Android && Android.pickRestoreFile);
+function restoreStart() {
+  if (!(S.settings.backup.on && Android.readAutoBackup)) return pickRestoreFile();
+  /* the auto backup's file first; with none that can be read, the picker */
+  readAutoBackup(r => {
+    if (typeof r.text !== "string" || restoreText(r.text, r) === false) pickRestoreFile();
+  });
+}
+function pickRestoreFile() {
+  try {
+    Android.pickRestoreFile();
+  } catch (e) {}
+}
+/* window.prosperityRestore: the picked file's text, or why it couldn't be read; both null = cancelled */
+function onRestorePicked(text, err) {
+  if (err) snack(err);
+  else if (text != null) restoreText(text);
+}
+/* whether a backup of this notebook exists: the daily auto backup has written its file, or a backup was saved here */
+function hasBackup() {
+  const bs = backupStatus();
+  return !!((bs && bs.last > 0) || S.settings.savedBackup > 0);
+}
+/* Settings → Save backup: the whole notebook as a JSON file; `then` runs once Android's save dialog has answered */
+let AFTER_SAVE = null,
+  SAVING_BACKUP = false;
+function saveBackup(then) {
+  const bridged = !!(window.Android && Android.saveFile); // else there's no save dialog to wait for
+  SAVING_BACKUP = bridged;
+  saveOut("prosperity-backup-" + today() + ".json", "application/json", JSON.stringify(S), then);
+  if (!bridged && then) then();
+}
+/* Delete all data: always offers a backup first, since even an existing one may miss the latest entries (Save backup /
+   Skip). Save backup backs up now into the auto backup's folder when that's set up, else (or if that fails) saves a file; then the
+   final Yes / No. */
+function wipeAll() {
+  const had = hasBackup(),
+    bs = backupStatus(),
+    auto = S.settings.backup.on && bs && bs.usable;
+  askDialog(
+    had ? "Back up first?" : "No backup yet",
+    had
+      ? "Your last backup may not have your latest entries. Save them before deleting everything?"
+      : "Save a backup of your data before deleting it?",
+    "Save backup",
+    () => {
+      if (!auto) return saveBackup(wipeConfirm);
+      /* a failed Back up now: a file instead. If the user has moved on meanwhile (a slow folder), the answer is only
+         said: the final question never pops up over something else */
+      backupNow(err => {
+        if (V.screen !== "settings" || $("#pop").innerHTML || $("#sheet").innerHTML) return;
+        if (err) saveBackup(wipeConfirm);
+        else wipeConfirm();
+      });
+    },
+    { cancel: "Skip", no: wipeConfirm }
+  );
+}
+/* the final Yes / No; keeps the preferences: main currency, week start, time format, theme, reminders, haptics, the
+   donut's middle and auto backup (which never overwrites its file with an empty notebook) */
+function wipeConfirm() {
+  askDialog(
+    "Delete all data?",
+    "Every account and entry on this phone. This can't be undone.",
+    "Yes",
+    () => {
+      const keep = {
+        cur: S.settings.cur,
+        week: S.settings.week,
+        clock: S.settings.clock,
+        theme: S.settings.theme,
+        remind: S.settings.remind,
+        haptics: S.settings.haptics,
+        hapticLevel: S.settings.hapticLevel,
+        donut: S.settings.donut,
+        backup: S.settings.backup,
+      };
+      S = blank();
+      Object.assign(S.settings, keep);
+      commit();
+      snack("All data deleted");
+    },
+    { danger: true, cancel: "No" }
+  );
+}

@@ -1,0 +1,11 @@
+{
+  "name": "Prosperity",
+  "short_name": "Prosperity",
+  "description": "Your money across accounts, currencies and gold: budgets and one clear number for what you can use.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#2d3034",
+  "theme_color": "#2d3034",
+  "icons": [{ "src": "icon-512.png", "sizes": "192x192 512x512", "type": "image/png", "purpose": "any" }]
+}

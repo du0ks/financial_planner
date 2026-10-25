@@ -1,0 +1,246 @@
+/* p.css — styles for p-app.js (budget, the chain, gold, …), on the Material 3 colour roles so light and dark both follow. */
+
+/* four tabs: Home, Budget, Assets, Liabilities */
+body:not(.rail) .nav .in {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+/* Home: Available now */
+.balbar.p-avail {
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+}
+.balbar.p-avail b {
+  font-size: 1.35rem;
+}
+.balbar.p-avail + .balbar {
+  margin-top: 8px;
+}
+
+/* a section title with its total and a small + on the right, in the title's own size */
+.sec.p-sec {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 28px;
+}
+.p-sec-r {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.p-sec-r b {
+  color: var(--on-surface);
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+.p-plus {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+  flex: none;
+  position: relative;
+}
+/* a bigger target than it looks (48px), for fingers */
+.p-plus::after {
+  content: "";
+  position: absolute;
+  inset: -10px;
+}
+.p-plus .ic {
+  width: 18px;
+  height: 18px;
+}
+
+/* sub-groups inside one list (Gold: Touchable, Untouchable) */
+.p-sub {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--on-surface-variant);
+  padding: 14px 16px 6px;
+}
+.p-sub + .p-sub,
+.tx + .p-sub,
+.p-none + .p-sub {
+  border-top: 1px solid var(--outline-variant);
+}
+.p-none {
+  padding: 4px 16px 14px;
+  font-size: 0.85rem;
+  color: var(--on-surface-variant);
+}
+
+/* the chain: total − … = net worth − … = available now */
+.card.p-chain {
+  padding: 6px 16px;
+}
+.p-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 7px 0;
+  font-size: 0.92rem;
+  color: var(--on-surface-variant);
+  text-align: left;
+  background: none;
+}
+.p-line b {
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--on-surface);
+}
+button.p-line span {
+  text-decoration: underline;
+  text-decoration-color: var(--outline-variant);
+  text-underline-offset: 3px;
+}
+.p-line.tot {
+  border-top: 1px solid var(--outline-variant);
+  margin-top: 2px;
+  padding-top: 9px;
+  color: var(--on-surface);
+  font-weight: 600;
+}
+.p-line.end b {
+  font-size: 1.1rem;
+  color: var(--primary);
+}
+
+/* "You owe" and an overspent budget: a deep red card */
+.sumcard.owe {
+  background: var(--spent-container);
+  color: var(--on-spent-container);
+}
+
+/* the main currency, tappable, on the Net worth card */
+.p-curchip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--surface-highest);
+  color: var(--on-surface);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.p-warn {
+  color: var(--spent) !important;
+}
+.tx .a.p-debt {
+  color: var(--spent);
+}
+
+/* Budget */
+.p-month {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: -4px 0 12px;
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+.p-month .icon[disabled] {
+  opacity: 0.35;
+}
+.sumcard .bar.p-bar {
+  margin: 10px 0 8px;
+}
+.bar.p-bar {
+  position: relative;
+  display: flex;
+  overflow: visible;
+  height: 6px;
+  margin: 8px 0 2px;
+}
+.bar.p-bar span {
+  border-radius: 0;
+  flex: none;
+}
+.bar.p-bar span:first-child {
+  border-radius: 4px 0 0 4px;
+}
+.bar.p-bar .co {
+  opacity: 0.4;
+}
+.bar.p-bar.ok span {
+  background: var(--got);
+}
+.bar.p-bar.ahead span,
+.bar.p-bar.tight span {
+  background: #e0a100;
+}
+.bar.p-bar.over span,
+.sumcard .bar.p-bar.over span {
+  background: var(--spent);
+}
+.bar.p-bar i {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 12px;
+  border-radius: 1px;
+  background: var(--on-surface);
+  opacity: 0.55;
+}
+.p-brow.over .s,
+.p-brow.tight .s {
+  color: var(--spent);
+}
+.p-brow.ahead .s {
+  color: #b07d00;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .p-brow.ahead .s {
+    color: #f2c14e;
+  }
+}
+:root[data-theme="dark"] .p-brow.ahead .s {
+  color: #f2c14e;
+}
+.p-brow .mid {
+  min-width: 0;
+  flex: 1;
+}
+
+/* Home: the period's entries, a quiet link under Available now */
+.p-entries {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px auto 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  color: var(--on-surface-variant);
+}
+.p-entries .ic {
+  width: 18px;
+  height: 18px;
+}
+/* every budget bar as wide as its row */
+.p-brow .mid .bar.p-bar {
+  width: 100%;
+}
+.p-brow .a {
+  min-width: 6.5rem;
+}
+
+/* the welcome page's logo */
+.welcome .logo {
+  width: 96px;
+  height: 96px;
+  border-radius: 24px;
+  margin: 8px auto 4px;
+  display: block;
+}

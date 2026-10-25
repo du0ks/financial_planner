@@ -6,8 +6,8 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  // public/tally is the Tally-based prototype: plain browser scripts with their own conventions.
-  globalIgnores(['dist', 'public/tally', 'tally-tests']),
+  // web/ is the new app: plain browser scripts with their own conventions.
+  globalIgnores(['dist', 'web']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [

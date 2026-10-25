@@ -36,6 +36,15 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Check the new app (web/)
+        run: node --test web/tests/logic.check.cjs
+
+      - name: Add the new app at /next/
+        run: |
+          mkdir -p dist/next
+          cp -r web/. dist/next/
+          rm -rf dist/next/tests
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
