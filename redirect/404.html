@@ -1,0 +1,22 @@
+<!doctype html>
+<!-- Prosperity moved to prosperity.vogons21.workers.dev. This page (and 404.html) sends every old link there,
+     keeping the rest of the address so email links still work. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prosperity has moved</title>
+<script>
+  var NEW = "https://prosperity.vogons21.workers.dev/";
+  if (navigator.serviceWorker) navigator.serviceWorker.getRegistrations().then(function (rs) { rs.forEach(function (r) { r.unregister(); }); });
+  location.replace(NEW + location.search + location.hash);
+</script>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 48px 16px; text-align: center; background: #fff; color: #222; }
+  @media (prefers-color-scheme: dark) { body { background: #111; color: #eee; } a { color: #8ab4ff; } }
+</style>
+</head>
+<body>
+<p>Prosperity has moved to <a href="https://prosperity.vogons21.workers.dev/">prosperity.vogons21.workers.dev</a>.</p>
+</body>
+</html>

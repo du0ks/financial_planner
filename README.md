@@ -12,7 +12,8 @@ Copyright © 2026 du0ks. Third-party parts: see [web/THIRD_PARTY_NOTICES.md](web
 cd web && python3 -m http.server 8000      # http://localhost:8000
 ```
 
-Pushing to `main` tests it and publishes `web/` with GitHub Pages (`.github/workflows/pages.yml`).
+Live at https://prosperity.vogons21.workers.dev. Pushing to `main` makes Cloudflare (Workers, `wrangler.jsonc`) run
+the tests and publish `web/`. The old GitHub Pages address only sends people there (`redirect/`, `.github/workflows/pages.yml`).
 
 ## How it adds up
 

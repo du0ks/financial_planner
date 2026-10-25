@@ -1,4 +1,4 @@
-name: Deploy Prosperity to GitHub Pages
+name: Old address (GitHub Pages) points to the new one
 
 on:
   push:
@@ -24,19 +24,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node (tests only; the app has no build step)
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Test the money maths, merging and the old app's data
-        run: node --test web/tests/logic.check.cjs web/tests/cloud.check.cjs
-
-      - name: Put the app together
+      - name: Put the moved notice together
         run: |
           mkdir _site
-          cp -r web/. _site/
-          rm -rf _site/tests
+          cp -r redirect/. _site/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
