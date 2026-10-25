@@ -1,4 +1,4 @@
-name: Deploy static site to GitHub Pages
+name: Deploy Prosperity to GitHub Pages
 
 on:
   push:
@@ -24,26 +24,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node
+      - name: Set up Node (tests only; the app has no build step)
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
+          node-version: 22
 
-      - name: Install dependencies
-        run: npm install
+      - name: Test the money maths, merging and the old app's data
+        run: node --test web/tests/logic.check.cjs web/tests/cloud.check.cjs
 
-      - name: Build
-        run: npm run build
-
-      - name: Check the new app (web/)
-        run: node --test web/tests/logic.check.cjs
-
-      - name: Add the new app at /next/
+      - name: Put the app together
         run: |
-          mkdir -p dist/next
-          cp -r web/. dist/next/
-          rm -rf dist/next/tests
+          mkdir _site
+          cp -r web/. _site/
+          rm -rf _site/tests
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -51,7 +44,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./dist # Deploy the built assets
+          path: ./_site
 
       - name: Deploy to GitHub Pages
         id: deployment

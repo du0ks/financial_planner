@@ -5,7 +5,8 @@
  */
 "use strict";
 
-const LS = "prosperity:v1";
+/* each signed-in person's notebook is kept under its own key on this device (p-cloud.js sets it before loading) */
+let LS = "prosperity:v1:none";
 function blank() {
   return {
     v: 6,
@@ -356,8 +357,6 @@ function keepAside(t) {
 function loadState() {
   let local = null;
   try {
-    /* data saved while the app was still the prototype at /tally/ */
-    if (!localStorage.getItem(LS) && localStorage.getItem("tally:v1")) localStorage.setItem(LS, localStorage.getItem("tally:v1"));
     local = localStorage.getItem(LS);
     saveSeq = seqOf(localStorage.getItem(LS + ":seq"));
   } catch (e) {} // storage blocked: the shell's copy may still have it all

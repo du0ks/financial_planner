@@ -54,6 +54,23 @@ function pMigrate(o, s) {
   s.skips = (Array.isArray(o.skips) ? o.skips : [])
     .filter(k => k && typeof k.rule === "string" && isMonth(k.month))
     .map(k => ({ rule: k.rule, month: k.month }));
+  /* imported from the old app (p-import.js): its categories onto the built-in ones, renamed as you had them, the
+     rest added as your own, and built-ins you didn't use hidden */
+  if (Array.isArray(o.pCats)) {
+    const used = new Set();
+    o.pCats.forEach(c => {
+      used.add(c.id);
+      const k = s.cats.find(x => x.id === c.id);
+      if (k) {
+        if (c.rename) k.name = String(c.rename).slice(0, 30);
+        k.hidden = false;
+      } else if (c.fresh)
+        s.cats.push({ id: c.id, name: String(c.name || "Category").slice(0, 30), e: "", c: c.c, i: APP_ICONS[c.i] ? c.i : "category", kind: c.kind === "in" ? "in" : "out", hidden: false });
+    });
+    s.cats.forEach(k => {
+      if (!used.has(k.id)) k.hidden = true;
+    });
+  }
   s.budgets = {};
   if (o.budgets && typeof o.budgets === "object")
     Object.entries(o.budgets).forEach(([cat, b]) => {
@@ -863,24 +880,22 @@ settingsView = function () {
     esc(ratesLine()) +
     '</div><div class="s">Totals are in your main currency (' +
     esc(pCur()) +
-    ')</div></span><button class="btn tonal" data-act="p-fx-refresh">Refresh</button></div></div>' +
-    '<div class="sec">Try it</div><div class="list"><div class="setrow"><span class="mid"><div>Sample data</div><div class="s">Replaces everything here with an example</div></span><button class="btn tonal" data-act="p-demo">Load</button></div></div>';
+    ')</div></span><button class="btn tonal" data-act="p-fx-refresh">Refresh</button></div></div>';
   return h.slice(0, i) + mine + h.slice(i);
 };
 
 /* ---------- sample data ---------- */
 
+/* a sample notebook of its own, on this device only: your account and data are never touched by it */
 function pDemo() {
-  const go = () => {
-    S = migrate(pDemoState());
-    V.screen = "home";
-    V.cur = null;
-    V.bm = null;
-    commit();
-    snack("Sample data loaded");
-  };
-  if (S.accounts.length) askDialog("Replace everything?", "Your accounts and entries here are replaced by the sample.", "Replace", go, { danger: true });
-  else go();
+  pSetSession({ demo: true });
+  pUseNotebook();
+  S = migrate(pDemoState());
+  V.screen = "home";
+  V.cur = null;
+  V.bm = null;
+  commit();
+  snack("Sample data: try anything, nothing is saved to an account");
 }
 function pDemoState() {
   /* someone paid in TRY who lives on CZK: salary lands at Ziraat, goes to Wise as CZK, and is spent
@@ -977,6 +992,7 @@ function pSidebar() {
   return (
     '<div class="p-side">' +
     '<div class="p-brand"><img src="icon-512.png" alt=""><span>Prosperity</span></div>' +
+    pSyncBadge() +
     '<button class="btn p-side-new" data-act="add-out">' +
     ic("remove") +
     "New expense<kbd>N</kbd></button>" +

@@ -36,3 +36,4 @@ seed/
 exports/
 *.csv
 *.xlsx
+web/tests/output/

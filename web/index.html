@@ -6,7 +6,7 @@
     <!-- Everything is local except exchange rates and the gold price (p-fx.js); only the app's own scripts may run. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; manifest-src 'self'; worker-src 'self'; connect-src https://cdn.jsdelivr.net https://*.currency-api.pages.dev https://api.gold-api.com; base-uri 'none'; form-action 'none'"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; manifest-src 'self'; worker-src 'self'; connect-src https://sjrvsqhmdrrsshwokuok.supabase.co https://cdn.jsdelivr.net https://*.currency-api.pages.dev https://api.gold-api.com; base-uri 'none'; form-action 'none'"
     />
     <title>Prosperity</title>
     <meta name="description" content="Your money across accounts, currencies and gold." />
@@ -46,9 +46,13 @@
     <script src="js/backup.js"></script>
     <script src="js/gestures.js"></script>
     <script src="js/events.js"></script>
+    <script src="js/config.js"></script>
     <script src="js/p-logic.js"></script>
+    <script src="js/p-sync.js"></script>
+    <script src="js/p-import.js"></script>
     <script src="js/p-fx.js"></script>
     <script src="js/p-app.js"></script>
+    <script src="js/p-cloud.js"></script>
     <script src="js/main.js"></script>
   </body>
 </html>

@@ -3,7 +3,7 @@
  */
 "use strict";
 
-loadState();
+pBootSession(); // the signed-in person's notebook (p-cloud.js)
 pStartFx(); // live rates (p-fx.js)
 /* offline and installable (sw.js); browsers allow it on https and on this computer */
 if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1"))
@@ -57,3 +57,5 @@ Object.assign(window, {
 try {
   if (window.Android && Android.ready) Android.ready();
 } catch (e) {}
+/* your account: the email link, then the cloud (p-cloud.js) */
+pStartCloud();

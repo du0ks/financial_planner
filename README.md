@@ -1,53 +1,54 @@
 # Prosperity
 
-Personal finances across accounts, cards, currencies and gold. A React PWA on GitHub Pages,
-with each user's data in one Supabase row.
+Your money across accounts, cards, currencies and gold: one tap per expense, a monthly budget per category, and one
+clear number for what you can use. Works on phones and computers, offline too, and keeps each person's data in their
+own account. Plain HTML, CSS and JavaScript in `web/`; no build step.
 
-## Run
+Copyright © 2026 du0ks. Third-party parts: see [web/THIRD_PARTY_NOTICES.md](web/THIRD_PARTY_NOTICES.md).
+
+## Run it
 
 ```
-npm install
-npm run dev      # http://localhost:5173/financial_planner/  (log in with demo / demo)
-npm test         # vitest: money, FX, gold, card interest, payoff, insights, sync
-npm run lint
-npm run build
+cd web && python3 -m http.server 8000      # http://localhost:8000
 ```
 
-`.env` (optional locally, see `.env.example`) holds the public Supabase URL and anon key.
-Security comes from Row Level Security on `public.user_data`, not from hiding that key.
+Pushing to `main` tests it and publishes `web/` with GitHub Pages (`.github/workflows/pages.yml`).
 
-## How the data works
+## How it adds up
 
-- **One document per user** (`src/lib/doc.js`): collections of records (accounts, anchors,
-  tx, rules, categories, budgets, planned, portions, goldEvents, snapshots, goals, fxDays,
-  settings). Each record carries `updatedAt`; deletes are tombstones.
-- **Money is exact**: integer minor units per currency, rates and percentages through
-  big.js (`src/lib/money.js`, `src/lib/fx.js`). Gold is integer milligrams.
-- **Every item has its own currency.** Totals convert into the display currency. Balances
-  convert at today's rate; transactions at the frozen rate of their own date (`fxDays`),
-  so past months never move. Manual pair overrides live in settings.
-- **Balances** are the last value you typed (an anchor) plus every transaction after it
-  (`src/lib/ledger.js`). A credit card is an account with a negative balance; paying it is
-  a transfer. Transfers are never spending or income.
-- **Recurring income and bills** are rules; each month's occurrence waits to be confirmed.
-- **Card interest** (`src/lib/cards.js`) follows each card's own terms. The Turkey preset
-  charges interest only on the unpaid remainder once the minimum is paid, plus KKDF + BSMV,
-  and late interest on any unpaid part of the minimum. The Generic preset has no taxes and
-  lets the card charge either the remainder or the whole statement.
-- **Sync** (`src/state/store.js`): local first. A save is a compare-and-swap on the row's
-  `updated_at`; if another device saved first, the documents merge record by record and
-  the merge is saved. Offline edits stay on the device and go up when the connection is back.
-- Data from before v5 is not carried over. The old columns (`cards`, `funds`, `others`,
-  `history`, `gold_grams`) are written empty on every save; old localStorage keys are
-  removed on start.
+- **One everyday currency** (Settings → Region): budgets, totals, the Home ring and the spending summary are in it.
+  Accounts, gold and recurring rules keep their own currency; every entry converts at the rate of its own day.
+- **Available now** = money you can use + touchable gold − card debt − loans you owe − bills before your next income.
+  **Net worth** = everything you own − card debt − loans you owe. An account counts as money you can use unless its
+  "Counts as money I can use" switch is off (savings, a fund, a currency you keep).
+- **Budgets**: one monthly amount per spending category; spending at its own day's rate, bills still to come at
+  today's. Transfers, loan payments and their fees are never spending.
 
-## Market data
+## Accounts and the cloud (Supabase)
 
-- Rates and gold history: [fawazahmed0/currency-api](https://github.com/fawazahmed0/exchange-api)
-  (daily, every ISO currency plus XAU, history by date).
-- Live gold: gold-api.com XAU/USD. Gold is valued at spot, converted at today's rate; %
-  changes compare the gram price in the display currency with the same day back then.
+- Sign up with email and password (confirmed by email), sign in, reset the password: `web/js/p-cloud.js`, talking to
+  Supabase Auth directly. The project's URL and public key are in `web/js/config.js`.
+- Each person's notebook is one row of `public.app_state` (`supabase/migrations/`), readable and writable only by them
+  (Row Level Security). Every change is saved there within a second, or queued while offline; when two devices change
+  it, the two are merged record by record (`web/js/p-sync.js`).
+- The first sign-in brings back what the previous app kept (`public.user_data`), with every balance as it was
+  (`web/js/p-import.js`).
 
-## Text
+## Files
 
-All UI text is in `src/i18n/strings.js`.
+- `web/js/p-logic.js` — the money maths (rates, gold, the chain, recurring rules, budgets); no DOM.
+- `web/js/p-cloud.js`, `p-sync.js`, `p-import.js` — account, saving and merging, the previous app's data.
+- `web/js/p-fx.js` — live and past exchange rates and the gold price.
+- `web/js/p-app.js` — Budget, Assets, Liabilities, gold, recurring rules, the computer layout and shortcuts.
+- the rest of `web/js/` and `web/css/` — entries, accounts, loans, History, Settings, sheets, the calculator, the ring.
+
+On a computer (1200px+) there is a side bar and keyboard shortcuts: N new expense, I money in, T transfer, 1–4 the
+tabs, H History, `,` Settings, Enter saves, Esc closes, ? lists them.
+
+## Tests
+
+```
+node --test web/tests/logic.check.cjs web/tests/cloud.check.cjs   # maths, merging, the old app's data
+node web/tests/e2e.mjs          # every screen in a real headless Firefox (needs Firefox)
+node web/tests/cloud.e2e.mjs    # accounts and sync on two devices, against a stand-in Supabase
+```

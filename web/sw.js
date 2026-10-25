@@ -10,7 +10,15 @@ const CACHE = "prosperity-app";
 self.addEventListener("install", ev => {
   ev.waitUntil(caches.open(CACHE).then(c => c.addAll(["./", "index.html"])).then(() => self.skipWaiting()));
 });
-self.addEventListener("activate", ev => ev.waitUntil(self.clients.claim()));
+/* taking over from the previous app's worker: its caches go, so its old pages never come back */
+self.addEventListener("activate", ev =>
+  ev.waitUntil(
+    caches
+      .keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
+  )
+);
 
 self.addEventListener("fetch", ev => {
   const req = ev.request,

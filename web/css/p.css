@@ -371,3 +371,49 @@ body.desk .nav .p-side .btn .ic {
   height: 20px;
   flex: none;
 }
+
+/* sign in / create an account */
+.p-auth {
+  max-width: 420px;
+  margin: 0 auto;
+  text-align: left;
+}
+.p-auth h2,
+.p-auth > p {
+  text-align: center;
+}
+.p-auth .field {
+  margin-top: 12px;
+}
+.p-auth .btn {
+  margin-top: 14px;
+}
+.p-auth-links {
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.p-auth-links .btn {
+  width: auto;
+  margin-top: 4px;
+}
+/* how saving to your account is going */
+.p-sync {
+  display: inline-block;
+  font-size: 0.75rem;
+  color: var(--on-surface-variant);
+}
+.p-sync.saved::before {
+  content: "● ";
+  color: var(--got);
+}
+.p-sync.offline,
+.p-sync.demo {
+  color: #b07d00;
+}
+.p-sync.error {
+  color: var(--spent);
+}
+.p-side > .p-sync {
+  padding: 0 10px 12px;
+  margin-top: -8px;
+}
