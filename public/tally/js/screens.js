@@ -39,7 +39,7 @@ function drawScreen() {
   const app = $("#app");
   RBC = null;
   if (V.screen !== "history") V.sel = null;
-  const tabs = ["home", "assets", "liabs"].includes(V.screen) && S.accounts.length > 0; // archived ones too
+  const tabs = P_TABS.map(t => t[0]).includes(V.screen) && S.accounts.length > 0; // archived ones too; P_TABS: p-app.js
   const land = phoneLand();
   document.body.classList.toggle("hasnav", tabs);
   document.body.classList.toggle("land", land);
@@ -59,6 +59,7 @@ function drawScreen() {
   if (V.screen === "history") app.innerHTML = historyView();
   else if (V.screen === "assets") app.innerHTML = assetsView();
   else if (V.screen === "liabs") app.innerHTML = liabsView();
+  else if (V.screen === "budget") app.innerHTML = budgetView(); // p-app.js
   else if (V.screen === "settings") {
     app.innerHTML = settingsView();
     fitWeekSeg();
@@ -68,12 +69,7 @@ function drawScreen() {
   document.body.classList.toggle("hist", V.screen === "history"); // horizontal swipes switch accounts (gestures.js)
   $("#nav").innerHTML = tabs
     ? '<div class="in">' +
-      [
-        ["home", "Home", "home"],
-        ["assets", "Assets", "wallet"],
-        ["liabs", "Liabilities", "card"],
-      ]
-        .map(
+      P_TABS.map(
           ([k, l, i]) =>
             '<button data-act="tab" data-v="' +
             k +

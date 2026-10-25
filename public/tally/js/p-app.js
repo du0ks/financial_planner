@@ -1,8 +1,8 @@
 /*
- * p-app.js — Prosperity's additions to Tally's screens: one total in your main currency at live rates, "Everything I
- * own" with the chain to net worth and available now, gold in grams, card interest rules and payoff, and recurring
- * income and bills. Tally's own screens are wrapped or replaced here (render() calls them by name), so Tally's files
- * stay almost as they are upstream. The maths lives in p-logic.js; rates in p-fx.js.
+ * p-app.js — Prosperity's additions to Tally's screens: one total in your main currency at live rates, a Budget tab,
+ * "Everything I own" with the chain to net worth and available now, gold in grams, and recurring income and bills.
+ * Tally's own screens are wrapped or replaced here (render() calls them by name), so Tally's files stay almost as
+ * they are upstream. The maths lives in p-logic.js; rates in p-fx.js.
  */
 "use strict";
 
@@ -12,20 +12,13 @@
 function pMigrate(o, s) {
   const byId = list => new Map((Array.isArray(list) ? list : []).filter(x => x && typeof x.id === "string").map(x => [x.id, x])),
     num = v => (typeof v === "number" && isFinite(v) && v >= 0 ? v : undefined),
-    isMonth = v => typeof v === "string" && /^\d{4}-\d{2}$/.test(v);
+    isCur = v => typeof v === "string" && /^[A-Z]{3}$/.test(v),
+    isMonth = v => typeof v === "string" && /^\d{4}-\d{2}$/.test(v),
+    isDay = v => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
   const oa = byId(o.accounts);
   s.accounts.forEach(a => {
     const x = oa.get(a.id) || {};
     if (typeof x.avail === "boolean") a.avail = x.avail;
-    if (x.terms && typeof x.terms === "object") {
-      const t = {};
-      ["rate", "tax", "minPct", "minFloor", "late", "stmtDay", "dueDay"].forEach(k => {
-        if (num(x.terms[k]) !== undefined) t[k] = x.terms[k];
-      });
-      if (P_PRESETS[x.terms.preset]) t.preset = x.terms.preset;
-      if (x.terms.base === "remainder" || x.terms.base === "statement") t.base = x.terms.base;
-      a.terms = t;
-    }
   });
   const ox = byId(o.assets);
   s.assets.forEach(a => {
@@ -51,7 +44,7 @@ function pMigrate(o, s) {
       type: r.type,
       name: String(r.name || "").slice(0, 40) || "Recurring",
       amount: num(r.amount) || 0,
-      currency: /^[A-Z]{3}$/.test(r.currency) ? r.currency : s.settings.cur || "USD",
+      currency: isCur(r.currency) ? r.currency : s.settings.cur || "USD",
       account: s.accounts.some(a => a.id === r.account) ? r.account : null,
       cat: typeof r.cat === "string" ? r.cat : null,
       day: Math.min(31, Math.max(1, Math.round(num(r.day) || 1))),
@@ -61,14 +54,56 @@ function pMigrate(o, s) {
   s.skips = (Array.isArray(o.skips) ? o.skips : [])
     .filter(k => k && typeof k.rule === "string" && isMonth(k.month))
     .map(k => ({ rule: k.rule, month: k.month }));
+  s.budgets = {};
+  if (o.budgets && typeof o.budgets === "object")
+    Object.entries(o.budgets).forEach(([cat, b]) => {
+      if (b && num(b.amount) > 0 && isCur(b.currency)) s.budgets[cat] = { amount: b.amount, currency: b.currency };
+    });
+  s.fxDays = {};
+  if (o.fxDays && typeof o.fxDays === "object")
+    Object.entries(o.fxDays).forEach(([d, r]) => {
+      if (!isDay(d) || !r || typeof r !== "object") return;
+      const day = {};
+      Object.entries(r).forEach(([c, v]) => {
+        if (/^[A-Z]{3}$/.test(c) && num(v) > 0) day[c] = v;
+      });
+      s.fxDays[d] = day;
+    });
 }
 const pRules = () => S.rules || (S.rules = []);
 const pSkips = () => S.skips || (S.skips = []);
+const pBudgets = () => S.budgets || (S.budgets = {});
 /* savings don't count as money you can use unless you say so; every other account does unless you say not */
 const pAvail = a => (typeof a.avail === "boolean" ? a.avail : a.type !== "savings");
 const pCur = () => S.settings.cur || (activeAccounts()[0] || {}).currency || "USD";
 const pMonthNow = () => today().slice(0, 7);
 const approx = (n, cur) => "≈ " + money(n, cur);
+/* the currency an entry is in: its account's */
+const pTxCur = t => (acc(t.account) || {}).currency;
+
+/* Each day's rates are kept with the data the first time something is saved that day, so this month's spending,
+   added up in your main currency, doesn't change when rates move tomorrow. Only the currencies in use. */
+function pFreezeToday() {
+  const rates = pRates();
+  if (!rates) return;
+  const d = today(),
+    codes = new Set([pCur(), "USD"].concat(S.accounts.map(a => a.currency), pRules().map(r => r.currency)));
+  S.fxDays = S.fxDays || {};
+  const day = S.fxDays[d] || {};
+  let changed = false;
+  codes.forEach(c => {
+    if (!day[c] && rates[c]) {
+      day[c] = rates[c];
+      changed = true;
+    }
+  });
+  if (changed) S.fxDays[d] = day;
+}
+const tallyCommit = commit;
+commit = function () {
+  pFreezeToday();
+  tallyCommit();
+};
 
 /* everything the screens show, worked out once per render */
 let PM = null;
@@ -95,23 +130,33 @@ function pModel() {
     return q + (v || 0);
   }, 0);
   const w = pWorth({ cur, rates, accounts, assets: S.assets, loans, bills });
-  if (billsMissing && !w.missing.includes("rates")) w.missing.push("rates");
-  const cards = accounts
-    .filter(a => a.type === "card")
-    .map(a => {
-      const t = pTerms(a),
-        debt = Math.max(0, -a.bal),
-        dm = pToMinor(debt, a.currency),
-        floor = pToMinor(t.minFloor, a.currency),
-        next = t.rate ? pFromMinor(pCycleInterest(dm, pMinimum(dm, t, floor), t, floor), a.currency) : null;
-      return { a, t, debt, dm, floor, next, nextConv: next === null ? 0 : pConv(next, a.currency, cur, rates) || 0 };
-    });
-  return (PM = { cur, rates, b, accounts, loans, pend, w, cards });
+  if (billsMissing) w.missing.push("rates");
+  return (PM = { cur, rates, b, accounts, loans, pend, w });
 }
 const ratesLine = () =>
-  PFX.date
-    ? "Rates of " + dayLabel(PFX.date) + (PFX.goldAt ? " · gold live" : "")
-    : "Rates not loaded yet: other currencies count as 0";
+  PFX.date ? "Rates of " + dayLabel(PFX.date) + (PFX.goldAt ? " · gold live" : "") : "Rates not loaded yet: other currencies count as 0";
+/* a section title with its total and a small + beside it */
+const pSecHead = (title, total, act, v, label) =>
+  '<div class="sec p-sec"><span>' +
+  esc(title) +
+  '</span><span class="p-sec-r">' +
+  (total === null ? "" : "<b>" + esc(total) + "</b>") +
+  (act
+    ? '<button class="p-plus" data-act="' + act + '"' + (v ? ' data-v="' + esc(v) + '"' : "") + ' aria-label="' + esc(label) + '">' + ic("add") + "</button>"
+    : "") +
+  "</span></div>";
+const pEmpty = text => '<p class="hint" style="margin:0 4px">' + esc(text) + "</p>";
+
+/* ---------- tabs: Home, Budget, Assets, Liabilities ---------- */
+
+/* Tally's drawScreen() lists its tabs; screens.js asks these (one line each there) */
+const P_TABS = [
+  ["home", "Home", "home"],
+  ["budget", "Budget", "budget"],
+  ["assets", "Assets", "wallet"],
+  ["liabs", "Liabilities", "card"],
+];
+P.budget = "M11 2v20c-5.07-.5-9-4.79-9-10s3.93-9.5 9-10zm2.03 0v8.99H22c-.47-4.74-4.24-8.52-8.97-8.99zm0 11.01V22c4.74-.47 8.5-4.25 8.97-8.99h-8.97z";
 
 /* ---------- Home ---------- */
 
@@ -123,18 +168,14 @@ homeView = function () {
       "Add first account</button>",
       'Add first account</button><div class="gap"></div><button class="btn tonal" data-act="p-demo">Try it with sample data</button>'
     );
-  const m = pModel(),
-    cur = m.cur;
+  const m = pModel();
   const avail =
     '<button class="balbar p-avail" data-act="p-chain">' +
     ic("wallet") +
     '<span class="l">Available now</span><b>' +
-    esc(money(m.w.availableNow, cur)) +
+    esc(money(m.w.availableNow, m.cur)) +
     "</b></button>";
-  return h.replace('<button class="balbar"', avail + '<button class="balbar"').replace(
-    'Lend</button></div>',
-    "Lend</button></div>" + pWaiting(m)
-  );
+  return h.replace('<button class="balbar"', avail + '<button class="balbar"').replace("Lend</button></div>", "Lend</button></div>" + pWaiting(m));
 };
 /* recurring income and bills waiting to be confirmed */
 function pWaiting(m) {
@@ -146,7 +187,6 @@ function pWaiting(m) {
     list
       .map(o => {
         const r = o.rule,
-          k = cat(r.cat),
           d = daysBetween(t, o.date),
           when = d === 0 ? "today" : d > 0 ? "in " + d + (d === 1 ? " day" : " days") : -d + (d === -1 ? " day late" : " days late"),
           conv = r.currency !== m.cur ? pConv(r.amount, r.currency, m.cur, m.rates) : null;
@@ -154,7 +194,7 @@ function pWaiting(m) {
           '<button class="tx" data-act="p-confirm" data-v="' +
           esc(r.id + "|" + o.month) +
           '">' +
-          emblem(k, "em") +
+          emblem(cat(r.cat), "em") +
           '<span class="mid"><div class="d" dir="auto">' +
           esc(r.name) +
           '</div><div class="s">' +
@@ -181,7 +221,7 @@ const P_STEP = {
   netWorth: "Net worth",
   goldUntouchable: "Untouchable gold",
   investments: "Investments & savings",
-  other: "Other assets & money owed to me",
+  other: "Other things & money owed to me",
   bills: "Bills before next income",
   availableNow: "Available now",
 };
@@ -190,10 +230,12 @@ function chainHTML(m) {
   return m.w.chain
     .map(s => {
       const label = s.key === "bills" && m.pend.payday ? P_STEP.bills + " (" + dayLabel(m.pend.payday) + ")" : P_STEP[s.key],
-        tab = P_STEP_TAB[s.key];
+        tab = P_STEP_TAB[s.key] && V.screen !== P_STEP_TAB[s.key] ? P_STEP_TAB[s.key] : null,
+        tag = tab ? "button" : "div";
       return (
         "<" +
-        (tab ? 'button data-act="p-tab" data-v="' + tab + '"' : "div") +
+        tag +
+        (tab ? ' data-act="p-tab" data-v="' + tab + '"' : "") +
         ' class="p-line' +
         (s.total ? " tot" : "") +
         (s.key === "availableNow" ? " end" : "") +
@@ -203,7 +245,7 @@ function chainHTML(m) {
         "</span><b>" +
         esc(money(s.total ? s.value : Math.abs(s.value), m.cur)) +
         "</b></" +
-        (tab ? "button" : "div") +
+        tag +
         ">"
       );
     })
@@ -217,40 +259,207 @@ function pChainSheet() {
       chainHTML(m) +
       '</div><p class="hint">' +
       esc(ratesLine()) +
-      '. Bills are the recurring ones still to pay before your next income.</p><div class="gap"></div><button class="btn tonal" data-act="p-tab" data-v="assets">See everything I own</button>'
+      ". Bills are the recurring ones still to pay before your next income.</p>"
   );
+}
+
+/* ---------- Budget ---------- */
+
+/* one month's budget report (p-logic.js pBudget) from the notebook */
+function pBudgetFor(month) {
+  const cur = pCur(),
+    rates = pRates(),
+    thisOrLater = month >= pMonthNow(),
+    rules = pRules(),
+    occ = pOccurrences(rules, S.txns, pSkips(), month).filter(o => o.month >= (o.rule.start || "0000-00")),
+    inMonth = S.txns.filter(t => t.date.slice(0, 7) === month && pTxCur(t));
+  const income =
+    inMonth.filter(t => t.type === "income").reduce((q, t) => q + (pConv(t.amount, pTxCur(t), cur, pRatesOn(rates, S.fxDays, t.date)) || 0), 0) +
+    (thisOrLater
+      ? occ.filter(o => !o.done && o.rule.type === "income").reduce((q, o) => q + (pConv(o.rule.amount, o.rule.currency, cur, rates) || 0), 0)
+      : 0);
+  return pBudget({
+    cur,
+    month,
+    today: today(),
+    cats: outCats(),
+    spend: inMonth.filter(isSpend).map(t => ({ date: t.date, cat: t.cat, amount: t.amount, currency: pTxCur(t) })),
+    budgets: pBudgets(),
+    coming: thisOrLater ? occ.filter(o => !o.done && o.rule.type === "expense").map(o => ({ cat: o.rule.cat, amount: o.rule.amount, currency: o.rule.currency })) : [],
+    billCats: rules.filter(r => r.type === "expense").map(r => r.cat),
+    latest: rates,
+    fxDays: S.fxDays,
+    income: income > 0 ? income : null,
+  });
+}
+const P_STATUS = { ok: "", ahead: "spending fast", tight: "bills take it over", over: "over budget" };
+function budgetView() {
+  const cur = pCur(),
+    month = V.bm || pMonthNow(),
+    b = pBudgetFor(month),
+    current = month === pMonthNow(),
+    past = month < pMonthNow();
+  let h =
+    '<header class="appbar"><h1>Budget</h1>' +
+    topIcons() +
+    "</header>" +
+    '<div class="p-month"><button class="icon" data-act="p-bm" data-v="-1" aria-label="Previous month">' +
+    ic("left") +
+    "</button><span>" +
+    esc(monthLabel(month, true)) +
+    '</span><button class="icon" data-act="p-bm" data-v="1" aria-label="Next month"' +
+    (month >= pAddMonths(pMonthNow(), 1) ? " disabled" : "") +
+    ">" +
+    ic("right") +
+    "</button></div>";
+  const over = b.left < 0,
+    used = b.total > 0 ? Math.min(100, ((b.spentIn + b.coming) / b.total) * 100) : 0,
+    lines = [];
+  lines.push("Spent " + money(b.spentIn, cur) + " of " + money(b.total, cur));
+  if (b.coming) lines.push(money(b.coming, cur) + " in bills still to come");
+  if (current && b.perDay) lines.push("About " + money(b.perDay, cur) + " a day for the " + b.daysLeft + (b.daysLeft === 1 ? " day" : " days") + " left");
+  if (b.unbudgeted) lines.push(money(b.unbudgeted, cur) + " spent without a budget");
+  if (b.unassigned !== null && b.total)
+    lines.push(
+      b.unassigned >= 0
+        ? "Income " + money(b.total + b.unassigned, cur) + " · " + money(b.unassigned, cur) + " not given a budget"
+        : "Budgets are " + money(-b.unassigned, cur) + " more than this month's income"
+    );
+  h +=
+    '<div class="sumcard' +
+    (over ? " owe" : "") +
+    '"><div class="t">' +
+    (b.total ? (over ? "Over budget by" : past ? "Left unspent" : "Left to spend") : "No budgets yet") +
+    '</div><div class="big">' +
+    esc(b.total ? money(Math.abs(b.left), cur) : money(b.spent, cur)) +
+    "</div>" +
+    (b.total
+      ? '<div class="bar p-bar' + (over ? " over" : "") + '" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + Math.round(used) + '"><span style="width:' + used.toFixed(1) + '%"></span></div>' +
+        lines.map(l => '<div class="t small">' + esc(l) + "</div>").join("")
+      : '<div class="t small">' + esc((b.spent ? "spent this month. " : "") + "Give each category a monthly budget below.") + "</div>") +
+    (b.missing ? '<div class="t small p-warn">' + esc(ratesLine()) + "</div>" : "") +
+    "</div>";
+  const rows = b.rows.slice().sort((x, y) => (x.budget === null) - (y.budget === null));
+  h +=
+    pSecHead("Categories", b.noBudget ? b.noBudget + " without a budget" : null) +
+    '<div class="list">' +
+    rows.map(r => pBudgetRow(r, cur)).join("") +
+    "</div>" +
+    '<p class="hint" style="margin:10px 4px 0">' +
+    esc(
+      (current ? "The line on each bar is where today falls in the month. " : "") +
+        "Spending in other currencies counts at the rate of its own day; budgets and bills at today's."
+    ) +
+    "</p>";
+  return h;
+}
+function pBudgetRow(r, cur) {
+  const k = cat(r.cat),
+    pct = r.budget ? Math.min(100, ((r.spent + r.coming) / r.budget) * 100) : 0,
+    spentPct = r.budget ? Math.min(100, (r.spent / r.budget) * 100) : 0,
+    month = V.bm || pMonthNow(),
+    mark = month === pMonthNow() ? (+today().slice(8, 10) / pDaysIn(month)) * 100 : null;
+  const s = n => money(n, cur, true), // short: ₺1,561 — a row has little room
+    sub =
+      r.budget === null
+        ? r.spent
+          ? "Spent " + s(r.spent) + " · no budget"
+          : "No budget yet"
+        : s(r.spent) + " of " + s(r.budget) + (r.coming ? " · " + s(r.coming) + " to come" : "") + (P_STATUS[r.status] ? " · " + P_STATUS[r.status] : "");
+  return (
+    '<button class="tx p-brow ' +
+    r.status +
+    '" data-act="p-budget" data-v="' +
+    esc(r.cat) +
+    '">' +
+    emblem(k, "em") +
+    '<span class="mid"><div class="d" dir="auto">' +
+    esc(k.name) +
+    '</div><div class="s">' +
+    esc(sub) +
+    "</div>" +
+    (r.budget !== null
+      ? '<div class="bar p-bar ' +
+        r.status +
+        '"><span class="sp" style="width:' +
+        spentPct.toFixed(1) +
+        '%"></span><span class="co" style="width:' +
+        (pct - spentPct).toFixed(1) +
+        '%"></span>' +
+        (mark !== null && r.status !== "none" ? '<i style="left:' + mark.toFixed(1) + '%"></i>' : "") +
+        "</div>"
+      : "") +
+    '</span><span class="a' +
+    (r.left !== null && r.left < 0 ? " p-debt" : r.budget === null ? " muted" : "") +
+    '">' +
+    (r.budget === null ? "Set" : esc(s(Math.abs(r.left))) + "<small>" + (r.left < 0 ? "over" : "left") + "</small>") +
+    "</span></button>"
+  );
+}
+function pBudgetSheet(catId) {
+  const cur = pCur(),
+    k = cat(catId),
+    b0 = pBudgets()[catId],
+    month = V.bm || pMonthNow(),
+    rep = pBudgetFor(month).rows.find(r => r.cat === catId) || { spent: 0, coming: 0 },
+    shown = b0 ? (b0.currency === cur ? b0.amount : pConv(b0.amount, b0.currency, cur, pRates()) || b0.amount) : "",
+    list = S.txns.filter(t => isSpend(t) && t.cat === catId && t.date.slice(0, 7) === month).sort(byNewest);
+  F = { kind: "pbudget", cat: catId };
+  openSheet(
+    k.name,
+    amtField("p-bamt", cur, shown === "" ? "" : String(shown), { label: "Budget every month" }) +
+      '<p class="hint">' +
+      esc(
+        monthLabel(month, true) +
+          ": spent " +
+          money(rep.spent, cur) +
+          (rep.coming ? ", " + money(rep.coming, cur) + " in bills to come" : "") +
+          ". The same budget repeats every month."
+      ) +
+      '</p><div class="gap"></div><button class="btn" data-act="p-budget-save">' +
+      ic("check") +
+      "Save</button>" +
+      (b0 ? '<div class="gap"></div><button class="btn text" data-act="p-budget-del">Remove budget</button>' : "") +
+      (list.length ? '<div class="sec">' + esc(monthLabel(month, true)) + '</div><div class="list">' + list.map(txLine).join("") + "</div>" : "")
+  );
+}
+function pBudgetSave() {
+  const raw = ($("#p-bamt") || {}).value || "",
+    v = raw.trim() ? evalAmt(raw) : 0;
+  if (v === null || v < 0) return snack("That isn't a number");
+  const id = F.cat,
+    name = cat(id).name;
+  closeSheet();
+  if (v > 0) pBudgets()[id] = { amount: v, currency: pCur() };
+  else delete pBudgets()[id];
+  commit();
+  snack(v > 0 ? name + ": " + money(v, pCur()) + " a month" : name + ": no budget");
 }
 
 /* ---------- Assets: everything I own ---------- */
 
-const P_GROUP = {
-  spendable: ["Spendable money", "Accounts, wallets and cash you can use."],
-  goldTouchable: ["Touchable gold", "Gold you would sell if you needed to."],
-  goldUntouchable: ["Untouchable gold", "Gold you keep, whatever happens."],
-  investments: ["Investments & savings", "Accounts you don't count as money you can use, like a fund."],
-  other: ["Other assets & money owed to me", "Things you own, and money you lent."],
-};
+function pAccRow(a, it, cur) {
+  return (
+    '<button class="tx' +
+    (FX.row === a.id ? " flash" : "") +
+    '" data-act="acc-open" data-v="' +
+    a.id +
+    '">' +
+    emblem(accEmb(a), "em") +
+    '<span class="mid"><div class="d" dir="auto">' +
+    esc(a.name) +
+    '</div><div class="s">' +
+    esc(typeName(a.type) + " · " + a.currency) +
+    '</div></span><span class="a' +
+    (it.amount < 0 ? " p-debt" : "") +
+    '">' +
+    esc(money(it.amount, a.currency)) +
+    (a.currency !== cur ? "<small>" + esc(approx(it.value, cur)) + "</small>" : "") +
+    "</span></button>"
+  );
+}
 function pItemRow(it, cur) {
-  const small = it.currency && it.currency !== cur ? "<small>" + esc(approx(it.value, cur)) + "</small>" : "";
-  if (it.acc) {
-    const a = acc(it.id);
-    return (
-      '<button class="tx' +
-      (FX.row === a.id ? " flash" : "") +
-      '" data-act="acc-open" data-v="' +
-      a.id +
-      '">' +
-      emblem(accEmb(a), "em") +
-      '<span class="mid"><div class="d" dir="auto">' +
-      esc(a.name) +
-      '</div><div class="s">' +
-      esc(typeName(a.type) + " · " + a.currency) +
-      '</div></span><span class="a">' +
-      esc(money(it.amount, a.currency)) +
-      small +
-      "</span></button>"
-    );
-  }
+  if (it.acc) return pAccRow(acc(it.id), it, cur);
   if (it.loan) return loanRow(it.loan.loan);
   if (it.asset && it.asset.kind === "gold")
     return (
@@ -263,7 +472,7 @@ function pItemRow(it, cur) {
       '</div><div class="s">' +
       esc(pGrams(it.mg)) +
       '</div></span><span class="a">' +
-      esc(approx(it.value, cur)) +
+      esc(money(it.value, cur)) +
       "</span></button>"
     );
   const x = it.asset;
@@ -276,25 +485,17 @@ function pItemRow(it, cur) {
     esc(x.name) +
     '</div></span><span class="a">' +
     esc(money(x.value, x.currency)) +
-    small +
+    (x.currency !== cur ? "<small>" + esc(approx(it.value, cur)) + "</small>" : "") +
     "</span></button>"
   );
 }
 const pGrams = mg => (mg / 1000).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 3 }) + " g";
-const P_ADD = {
-  spendable: [["acc-form", "", "Add account"]],
-  goldTouchable: [["p-gold", "new-touch", "Add gold"]],
-  goldUntouchable: [["p-gold", "new-keep", "Add gold"]],
-  investments: [],
-  other: [
-    ["asset-edit", "", "Add asset"],
-    ["loan-new", "lend", "Lend money"],
-  ],
-};
 assetsView = function () {
   const m = pModel(),
-    cur = m.cur;
-  let h =
+    cur = m.cur,
+    g = Object.fromEntries(m.w.groups.map(x => [x.key, x])),
+    list = items => '<div class="list">' + items.map(it => pItemRow(it, cur)).join("") + "</div>";
+  let left =
     '<div class="sumcard"><div class="t">Net worth</div><div class="big">' +
     esc(money(m.w.netWorth, cur)) +
     '</div><div class="t small">Everything I own ' +
@@ -306,379 +507,101 @@ assetsView = function () {
     " ⇄</button></div>" +
     (m.w.missing.length ? '<div class="t small p-warn">' + esc(ratesLine()) + "</div>" : "") +
     "</div>";
-  const sections = m.w.groups.map(g => {
-    const add = P_ADD[g.key]
-      .map(
-        ([act, v, label]) =>
-          '<button class="btn text" data-act="' + act + '"' + (v ? ' data-v="' + v + '"' : "") + ' style="margin-top:4px">' + ic("add") + esc(label) + "</button>"
-      )
-      .join("");
-    return (
-      '<div class="sec p-sec"><span>' +
-      esc(P_GROUP[g.key][0]) +
-      "</span><b>" +
-      esc(money(g.total, cur)) +
-      "</b></div>" +
-      (g.items.length
-        ? '<div class="list">' + g.items.map(it => pItemRow(it, cur)).join("") + "</div>"
-        : '<p class="hint" style="margin:0 4px">' + esc(P_GROUP[g.key][1]) + "</p>") +
-      add
-    );
-  });
+  left +=
+    pSecHead("Spendable money", money(g.spendable.total, cur), "acc-form", "", "Add account") +
+    (g.spendable.items.length ? list(g.spendable.items) : pEmpty("Accounts, wallets and cash you can use."));
+  /* gold: one place, touchable above untouchable */
+  const touch = g.gold.items.filter(i => i.touch),
+    keep = g.gold.items.filter(i => !i.touch),
+    sub = (label, total, items) =>
+      '<div class="p-sub"><span>' + esc(label) + "</span><b>" + esc(money(total, cur)) + "</b></div>" +
+      (items.length ? items.map(it => pItemRow(it, cur)).join("") : '<div class="p-none">None</div>');
+  left +=
+    pSecHead("Gold", money(g.gold.total, cur), "p-gold", "new", "Add gold") +
+    (g.gold.items.length
+      ? '<div class="list">' + sub("Touchable", m.w.goldTouchable, touch) + sub("Untouchable", m.w.goldUntouchable, keep) + "</div>"
+      : pEmpty("Gold in grams, valued at today's spot price. Touchable gold counts as money you can use."));
+  let right =
+    pSecHead("Investments & savings", money(g.investments.total, cur), "p-addsav", "", "Add a savings or investment account") +
+    (g.investments.items.length ? list(g.investments.items) : pEmpty("Savings or a fund you don't count as money you can use."));
+  right +=
+    pSecHead("Other things & money owed to me", money(g.other.total, cur), "p-addother", "", "Add something you own or money you lent") +
+    (g.other.items.length ? list(g.other.items) : pEmpty("Things you own, like a laptop, and money you lent."));
   const arch = S.accounts.filter(a => a.archived);
-  let archived = "";
   if (arch.length) {
-    archived =
-      '<button class="btn text" data-act="toggle-arch">' + (V.showArchived ? "Hide" : "Show") + " archived (" + arch.length + ")</button>";
-    if (V.showArchived) archived += '<div class="list">' + arch.map(a => accRow(a, m.b)).join("") + "</div>";
+    right += '<button class="btn text" data-act="toggle-arch">' + (V.showArchived ? "Hide" : "Show") + " archived (" + arch.length + ")</button>";
+    if (V.showArchived) right += '<div class="list">' + arch.map(a => accRow(a, m.b)).join("") + "</div>";
   }
-  const chain = '<div class="sec">How it adds up</div><div class="card p-chain">' + chainHTML(m) + "</div>";
-  const left = h + sections.slice(0, 3).join("") + archived,
-    right = sections.slice(3).join("") + chain;
+  right += '<div class="sec">How it adds up</div><div class="card p-chain">' + chainHTML(m) + "</div>";
   return tabBar("Assets") + panes(left, right);
 };
 
-/* ---------- Liabilities: cards with interest, loans ---------- */
+/* ---------- Liabilities: cards and loans ---------- */
 
 liabsView = function () {
   const m = pModel(),
     cur = m.cur,
-    owing = m.cards.filter(c => c.debt > 0),
-    monthly = m.cards.reduce((q, c) => q + c.nextConv, 0);
+    cards = m.accounts.filter(a => a.type === "card"),
+    mine = S.loans.filter(l => l.kind === "borrow"),
+    open = mine.filter(l => loanInfo(l).open),
+    done = mine.filter(l => !loanInfo(l).open);
   let h =
     '<div class="sumcard owe"><div class="t">You owe</div><div class="big">' +
     esc(money(m.w.cardDebt + m.w.owe, cur)) +
-    "</div>" +
-    (monthly > 0 ? '<div class="t small">Card interest ≈ ' + esc(money(monthly, cur)) + " a month if you pay only the minimums</div>" : "") +
-    "</div>";
-  h += loanSection("borrow", "Loans", "Money you borrow shows here until it’s paid back.", "Record a loan");
-  let right = "";
-  if (m.cards.length) {
-    right += '<div class="sec">Credit cards</div><div class="list">' + m.cards.map(c => pCardRow(c, cur)).join("") + "</div>";
-    if (owing.length > 1) right += pAllCardsCard(m);
-  }
-  right += '<button class="btn text" data-act="acc-form" style="margin-top:4px">' + ic("add") + "Add a credit card</button>";
-  return tabBar("Liabilities") + panes(h, right);
-};
-function pCardRow(c, cur) {
-  const a = c.a,
-    sub = c.t.rate
-      ? c.debt > 0
-        ? "≈ " + money(c.next, a.currency) + " a month"
-        : c.t.rate + "% a month · nothing owed"
-      : "Set interest rules";
-  return (
-    '<button class="tx" data-act="p-card" data-v="' +
-    a.id +
-    '">' +
-    emblem(accEmb(a), "em") +
-    '<span class="mid"><div class="d" dir="auto">' +
-    esc(a.name) +
-    '</div><div class="s' +
-    (c.t.rate ? "" : " p-warn") +
-    '">' +
-    esc(sub) +
-    '</div></span><span class="a' +
-    (c.debt > 0 ? " p-debt" : "") +
-    '">' +
-    esc(money(c.debt > 0 ? c.debt : a.bal, a.currency)) +
-    (a.currency !== cur && c.debt > 0 ? "<small>" + esc(approx(pConv(c.debt, a.currency, cur, pRates()) || 0, cur)) + "</small>" : "") +
-    "</span></button>"
-  );
-}
-/* every card with debt in the main currency: which to pay first */
-function pAllCards(m) {
-  return m.cards
-    .filter(c => c.debt > 0)
-    .map(c => ({
-      id: c.a.id,
-      c,
-      balance: pToMinor(pConv(c.debt, c.a.currency, m.cur, m.rates) || 0, m.cur),
-      t: c.t,
-      floor: pToMinor(pConv(c.t.minFloor, c.a.currency, m.cur, m.rates) || 0, m.cur),
-    }));
-}
-const pRealRate = t => (t.rate ? pMonthly(t.rate, t.tax) : 0);
-const pPct = (f, d) => (f * 100).toLocaleString(undefined, { maximumFractionDigits: d === undefined ? 2 : d }) + "%";
-function pAllCardsCard(m) {
-  const order = pOrder(pAllCards(m)),
-    first = order[0];
-  return (
-    '<div class="card"><h3>Pay ' +
-    esc(first.c.a.name) +
-    ' first</h3><p class="muted small" style="margin:0">' +
-    (first.t.rate
-      ? "It costs the most: " + esc(pPct(pRealRate(first.t))) + " a month with taxes. Pay every card's minimum and put the rest here."
-      : "Set each card's interest rules to see which costs the most.") +
-    '</p><div class="gap"></div><button class="btn tonal" data-act="p-allcards">Plan paying them all off</button></div>'
-  );
-}
-function pAllCardsSheet() {
-  const m = pModel(),
-    cards = pAllCards(m),
-    mins = cards.reduce((q, c) => q + pMinimum(c.balance, c.t, c.floor), 0),
-    suggest = pFromMinor(Math.ceil((mins * 2) / pToMinor(100, m.cur)) * pToMinor(100, m.cur), m.cur);
-  F = { kind: "pall" };
-  openSheet(
-    "All cards",
-    '<p class="muted small" style="margin:0 0 8px">In ' +
-      esc(m.cur) +
-      ". Every card gets its minimum; everything else goes to the card that costs the most, then the next.</p>" +
-      amtField("p-allamt", m.cur, String(suggest), { label: "I can put this toward cards each month" }) +
-      '<div id="p-allres"></div>'
-  );
-  pAllCardsUpdate();
-}
-function pAllCardsUpdate() {
-  const box = $("#p-allres"),
-    inp = $("#p-allamt");
-  if (!box || !inp) return;
-  const m = pModel(),
-    cards = pAllCards(m),
-    monthly = pToMinor(evalAmt(inp.value) || 0, m.cur),
-    r = pSimulateAll(cards, monthly),
-    mins = cards.reduce((q, c) => q + (pSimulate(c.balance, c.t, { type: "minimum" }, c.floor).interest || 0), 0),
-    fmt = n => money(pFromMinor(n, m.cur), m.cur);
-  box.innerHTML =
-    '<div class="list" style="margin-top:12px">' +
-    r.order
-      .map(
-        (c, i) =>
-          '<div class="tx"><span class="mid"><div class="d">' +
-          (i + 1) +
-          ". " +
-          esc(c.c.a.name) +
-          '</div><div class="s">' +
-          esc(c.t.rate ? pPct(pRealRate(c.t)) + " a month" : "No rate yet") +
-          (r.clearedIn[c.id] ? " · cleared in month " + r.clearedIn[c.id] : "") +
-          '</div></span><span class="a p-debt">' +
-          esc(fmt(c.balance)) +
-          "</span></div>"
-      )
-      .join("") +
-    "</div>" +
-    (r.short ? '<p class="hint p-warn">That doesn’t cover this month’s minimums. Late interest would apply.</p>' : "") +
-    '<div class="card" style="margin-top:12px"><h3>' +
-    esc(r.paidOff ? "All cleared in " + r.months + (r.months === 1 ? " month" : " months") : "Never: this doesn’t cover the interest") +
-    "</h3>" +
-    (r.paidOff ? '<p class="muted small" style="margin:0">About ' + esc(fmt(r.interest)) + " interest in total. Paying only the minimums: " + esc(fmt(mins)) + ".</p>" : "") +
-    "</div>";
-}
-
-/* one card: what it costs, and a payoff simulator in its own currency */
-function pCardSheet(id) {
-  const m = pModel(),
-    c = m.cards.find(x => x.a.id === id);
-  if (!c) return;
-  const a = c.a,
-    t = c.t,
-    cost = pRealRate(t);
-  F = { kind: "pcard", id };
-  let h =
-    '<div class="hero">' +
-    emblem(accEmb(a), "cprev") +
-    '<div class="t">' +
-    esc(c.debt > 0 ? "Owed now" : "Nothing owed") +
-    '</div><div class="v">' +
-    esc(money(c.debt, a.currency)) +
+    '</div><div class="t small">' +
+    esc("Cards " + money(m.w.cardDebt, cur) + " · loans " + money(m.w.owe, cur)) +
     "</div></div>";
   h +=
-    '<div class="card"><h3>' +
-    esc(t.rate ? t.rate + "% a month on " + (t.base === "statement" ? "the whole statement" : "what you leave unpaid") : "No interest rules yet") +
-    '</h3><p class="muted small" style="margin:0">' +
-    (t.rate
-      ? esc(
-          (t.tax ? "Plus " + t.tax + "% tax on the interest. " : "") +
-            "Real cost " +
-            pPct(cost) +
-            " a month, " +
-            pPct(pYearly(cost), 0) +
-            " a year. Minimum " +
-            t.minPct +
-            "%" +
-            (t.minFloor ? ", at least " + money(t.minFloor, a.currency) : "") +
-            "."
-        ) +
-        (c.debt > 0 ? "<br>Next statement interest if you pay the minimum: <b>" + esc(money(c.next, a.currency)) + "</b>" : "") +
-        (t.stmtDay && t.dueDay ? "<br>" + esc("Statement on the " + t.stmtDay + ", pay by the " + t.dueDay + ".") : "")
-      : "Add the bank's monthly rate to see what this debt costs.") +
-    '</p><div class="gap"></div><button class="btn tonal" data-act="p-terms" data-v="' +
-    a.id +
-    '">' +
-    ic("edit") +
-    "Interest rules</button></div>";
-  if (t.rate && c.debt > 0) {
-    h +=
-      '<div class="card"><h3>Paying it off</h3>' +
-      amtField("p-fixed", a.currency, String(Math.round(c.debt / 4)), { label: "A fixed amount each month" }) +
-      '<div id="p-sim"></div></div>';
+    pSecHead("Credit cards", money(m.w.cardDebt, cur), "p-addcard", "", "Add a credit card") +
+    (cards.length
+      ? '<div class="list">' +
+        cards
+          .map(a => {
+            const owed = Math.max(0, -a.bal);
+            const shown = owed || a.bal;
+            return pAccRow(a, { amount: shown, value: pConv(shown, a.currency, cur, m.rates) || 0 }, cur).replace(
+              esc(typeName(a.type) + " · " + a.currency),
+              esc(owed ? "Owed · " + a.currency : a.bal > 0 ? "Paid past zero · " + a.currency : "Nothing owed · " + a.currency)
+            ).replace('<span class="a">', owed ? '<span class="a p-debt">' : '<span class="a">');
+          })
+          .join("") +
+        "</div>"
+      : pEmpty("Your credit cards and what each one owes."));
+  let right =
+    pSecHead("Loans", money(m.w.owe, cur), "loan-new", "borrow", "Record a loan") +
+    (open.length ? '<div class="list">' + open.map(loanRow).join("") + "</div>" : pEmpty("Money you borrowed shows here until it's paid back."));
+  if (done.length) {
+    right += '<button class="btn text" data-act="toggle-cleared">' + (V.showCleared ? "Hide" : "Show") + " paid back (" + done.length + ")</button>";
+    if (V.showCleared) right += '<div class="list">' + done.map(loanRow).join("") + "</div>";
   }
-  h +=
-    '<div class="row">' +
-    (c.debt > 0 ? '<button class="btn" data-act="p-pay" data-v="' + a.id + '">' + ic("swap") + "Pay card</button>" : "") +
-    '<button class="btn tonal" data-act="hist-acc" data-v="' +
-    a.id +
-    '">' +
-    ic("list") +
-    "History</button></div>" +
-    '<div class="gap"></div><button class="btn text" data-act="acc-open" data-v="' +
-    a.id +
-    '">Balance & account</button>';
-  openSheet(a.name, h);
-  pSimUpdate();
-}
-function pSimUpdate() {
-  const box = $("#p-sim"),
-    inp = $("#p-fixed");
-  if (!box || !inp || !F || F.kind !== "pcard") return;
-  const c = pModel().cards.find(x => x.a.id === F.id);
-  if (!c) return;
-  const cur = c.a.currency,
-    fixed = pToMinor(evalAmt(inp.value) || 0, cur),
-    rows = [
-      ["Pay the full statement", pSimulate(c.dm, c.t, { type: "full" }, c.floor)],
-      ["Minimum payment (" + c.t.minPct + "%)", pSimulate(c.dm, c.t, { type: "minimum" }, c.floor)],
-      ["Fixed: " + money(pFromMinor(fixed, cur), cur), pSimulate(c.dm, c.t, { type: "fixed", amount: fixed }, c.floor)],
-    ];
-  box.innerHTML =
-    '<div class="list" style="margin-top:10px">' +
-    rows
-      .map(
-        ([label, r]) =>
-          '<div class="tx"><span class="mid"><div class="d">' +
-          esc(label) +
-          "</div>" +
-          (r.belowMin ? '<div class="s p-warn">Below the minimum: late interest applies</div>' : "") +
-          '</span><span class="a' +
-          (r.paidOff && r.interest ? " p-debt" : "") +
-          '">' +
-          esc(r.paidOff ? r.months + (r.months === 1 ? " month" : " months") : "Never") +
-          "<small>" +
-          esc(r.paidOff ? money(pFromMinor(r.interest, cur), cur) + " interest" : "doesn’t cover the interest") +
-          "</small></span></div>"
-      )
-      .join("") +
-    "</div>";
-}
-function pTermsForm(id) {
-  const a = acc(id);
-  if (!a) return;
-  const t = pTerms(a);
-  F = { kind: "pterms", id, preset: t.preset, base: t.base };
-  const fld = (fid, label, v, hint) =>
-    '<label class="field"><span>' +
-    esc(label) +
-    '</span><input id="' +
-    fid +
-    '" inputmode="decimal" autocomplete="off" value="' +
-    esc(v === null || v === undefined ? "" : String(v)) +
-    '" placeholder="' +
-    esc(hint || "") +
-    '"></label>';
-  const h =
-    '<div class="lbl" style="margin-top:0">Rules of</div><div class="seg">' +
-    ["turkey", "generic"]
-      .map(k => '<button data-act="p-preset" data-v="' + k + '" aria-pressed="' + (t.preset === k) + '">' + (k === "turkey" ? "Turkey" : "Generic") + "</button>")
-      .join("") +
-    '</div><p class="hint" id="p-preset-hint">' +
-    esc(P_PRESET_HINT[t.preset]) +
-    "</p>" +
-    '<div class="row">' +
-    fld("p-rate", "Monthly rate (%)", t.rate, t.preset === "turkey" ? "3.75" : "3.1") +
-    fld("p-tax", "Tax on interest (%)", t.tax) +
-    "</div>" +
-    '<div class="lbl">Interest is charged on</div><div class="seg">' +
-    [["remainder", "What is left unpaid"], ["statement", "The whole statement"]]
-      .map(([k, l]) => '<button data-act="p-base" data-v="' + k + '" aria-pressed="' + (t.base === k) + '">' + l + "</button>")
-      .join("") +
-    "</div>" +
-    '<div class="row">' +
-    fld("p-minpct", "Minimum (%)", t.minPct) +
-    fld("p-minfloor", "At least (" + a.currency + ")", t.minFloor || "", "optional") +
-    "</div>" +
-    '<div class="row">' +
-    fld("p-late", "Late interest, extra points", t.late) +
-    fld("p-stmt", "Statement day", t.stmtDay, "1–31") +
-    fld("p-due", "Due day", t.dueDay, "1–31") +
-    "</div>" +
-    '<p class="hint" id="p-tprev"></p><div class="gap"></div><button class="btn" data-act="p-terms-save">' +
-    ic("check") +
-    "Save</button>";
-  openSheet(a.name + ": interest rules", h);
-  pTermsPreview();
-}
-const P_PRESET_HINT = {
-  turkey:
-    "Interest only on what you leave unpaid after the due date, plus KKDF 15% + BSMV 15% on it. Minimum 20%. Paying less than the minimum adds about 0.30 points of late interest on the missing part.",
-  generic:
-    "No taxes; type your bank's numbers. Many cards outside Turkey charge the whole statement once it isn't paid in full: check your bank's tariff.",
+  return tabBar("Liabilities") + panes(h, right);
 };
-function pTermsRead() {
-  const n = id => {
-    const v = ($("#" + id) || {}).value || "";
-    if (!v.trim()) return null;
-    const x = evalAmt(v);
-    return x !== null && x >= 0 ? x : NaN;
-  };
-  const t = {
-    preset: F.preset,
-    base: F.base,
-    rate: n("p-rate"),
-    tax: n("p-tax"),
-    minPct: n("p-minpct"),
-    minFloor: n("p-minfloor"),
-    late: n("p-late"),
-    stmtDay: n("p-stmt"),
-    dueDay: n("p-due"),
-  };
-  return t;
-}
-function pTermsPreview() {
-  const el = $("#p-tprev");
-  if (!el) return;
-  const t = pTermsRead();
-  el.textContent = t.rate > 0 ? "Real cost " + pPct(pMonthly(t.rate, t.tax || 0)) + " a month, " + pPct(pYearly(pMonthly(t.rate, t.tax || 0)), 0) + " a year." : "";
-}
-function pTermsSave() {
-  const t = pTermsRead();
-  if (Object.values(t).some(v => typeof v === "number" && isNaN(v))) return snack("That isn't a number");
-  if ((t.stmtDay !== null && (t.stmtDay < 1 || t.stmtDay > 31)) || (t.dueDay !== null && (t.dueDay < 1 || t.dueDay > 31)))
-    return snack("Days go from 1 to 31");
-  const a = acc(F.id),
-    clean = {};
-  Object.keys(t).forEach(k => {
-    if (t[k] !== null && t[k] !== undefined) clean[k] = t[k];
-  });
-  a.terms = clean;
-  const id = F.id;
-  closeSheet();
-  commit();
-  snack("Interest rules saved");
-  pCardSheet(id);
-}
 
 /* ---------- gold ---------- */
 
 function pGoldForm(v) {
-  const x = v && !v.startsWith("new") ? S.assets.find(a => a.id === v) : null;
-  F = { kind: "pgold", id: x ? x.id : null, touch: x ? x.touch : v === "new-touch" };
+  const x = v && v !== "new" ? S.assets.find(a => a.id === v) : null;
+  F = { kind: "pgold", id: x ? x.id : null, touch: x ? x.touch : true };
   const h =
     '<label class="field"><span>Name</span><input id="p-gname" maxlength="30" value="' +
-    esc(x ? x.name : "Gold") +
-    '" placeholder="e.g. Bracelet, coins"></label>' +
+    esc(x ? x.name : "") +
+    '" placeholder="e.g. Bracelet, coins, quarter gold"></label>' +
     '<label class="field"><span>Grams</span><input id="p-grams" inputmode="decimal" autocomplete="off" value="' +
     esc(x ? String(x.mg / 1000) : "") +
     '" placeholder="0"></label>' +
     '<div class="seg">' +
-    [["yes", "Touchable"], ["no", "Untouchable"]]
+    [
+      ["yes", "Touchable"],
+      ["no", "Untouchable"],
+    ]
       .map(([k, l]) => '<button data-act="p-touch" data-v="' + k + '" aria-pressed="' + ((k === "yes") === F.touch) + '">' + l + "</button>")
       .join("") +
-    '</div><p class="hint">Touchable gold counts as money you can use; untouchable gold only counts in net worth.</p>' +
+    '</div><p class="hint">Touchable gold counts as money you can use; untouchable gold counts only in net worth.</p>' +
     '<p class="hint" id="p-gprev"></p><div class="gap"></div><button class="btn" data-act="p-gold-save">' +
     (x ? "Save" : "Add gold") +
     "</button>" +
     (x ? '<div class="gap"></div><button class="btn danger" data-act="p-gold-del">Delete</button>' : "");
-  openSheet(x ? "Edit gold" : "Gold", h);
+  openSheet(x ? x.name : "Gold", h);
   pGoldPreview();
 }
 function pGoldPreview() {
@@ -687,7 +610,7 @@ function pGoldPreview() {
   const cur = pCur(),
     g = pGram(cur, pRates()),
     grams = evalAmt(($("#p-grams") || {}).value || "") || 0;
-  el.textContent = g === null ? "No gold price yet (offline)." : money(g, cur) + " a gram at spot" + (grams ? " · ≈ " + money(g * grams, cur) : "");
+  el.textContent = g === null ? "No gold price yet (offline)." : money(g, cur) + " a gram at spot" + (grams ? " · " + money(g * grams, cur) : "");
 }
 function pGoldSave() {
   const name = $("#p-gname").value.trim() || "Gold",
@@ -717,14 +640,17 @@ function pRuleForm(id, type) {
     account: r ? r.account : first.id,
     cat: r ? r.cat : type === "income" ? "income" : "bills",
   };
-  openSheet(r ? "Edit recurring" : type === "income" ? "Recurring income" : "Recurring bill", pRuleBody(r));
+  openSheet(r ? r.name : type === "income" ? "Recurring income" : "Recurring bill", pRuleBody(r));
 }
 function pRuleBody(r) {
   const cats = F.type === "income" ? inCats() : outCats(),
     accs = activeAccounts().filter(a => F.type === "expense" || a.type !== "card");
   return (
     '<div class="seg">' +
-    [["expense", "Bill"], ["income", "Income"]]
+    [
+      ["expense", "Bill"],
+      ["income", "Income"],
+    ]
       .map(([k, l]) => '<button data-act="p-rtype" data-v="' + k + '" aria-pressed="' + (F.type === k) + '">' + l + "</button>")
       .join("") +
     "</div>" +
@@ -739,7 +665,7 @@ function pRuleBody(r) {
     ic("down") +
     '</button></div><label class="field"><span>Amount</span><input id="p-ramt" inputmode="decimal" autocomplete="off" value="' +
     esc(r ? String(r.amount) : "") +
-    '" placeholder="0"></label><label class="field"><span>Day of month</span><input id="p-rday" inputmode="numeric" value="' +
+    '" placeholder="0"></label><label class="field"><span>Day</span><input id="p-rday" inputmode="numeric" value="' +
     esc(r ? String(r.day) : "1") +
     '"></label></div>' +
     '<div class="lbl">' +
@@ -752,7 +678,7 @@ function pRuleBody(r) {
     cats
       .map(k => '<button class="chip" data-act="p-rcat" data-v="' + k.id + '" aria-pressed="' + (F.cat === k.id) + '">' + emblem(k, "ci") + esc(k.name) + "</button>")
       .join("") +
-    '</div><p class="hint">Each month it waits on Home until you confirm it, with the amount that really moved. A different currency is converted into the account’s at that day’s rate.</p><div class="gap"></div><button class="btn" data-act="p-rule-save">' +
+    '</div><p class="hint">Each month it waits on Home until you confirm it, with the amount that really moved. Another currency is converted into the account’s at that day’s rate.</p><div class="gap"></div><button class="btn" data-act="p-rule-save">' +
     ic("check") +
     "Save</button>" +
     (r ? '<div class="gap"></div><button class="btn danger" data-act="p-rule-del">Delete</button>' : "")
@@ -766,12 +692,13 @@ function pRuleSave() {
   if (!(amount > 0)) return snack("Enter an amount");
   if (!(day >= 1 && day <= 31)) return snack("Day goes from 1 to 31");
   if (!acc(F.account)) return snack("Pick an account");
-  const data = { type: F.type, name, amount, currency: F.cur, account: F.account, cat: F.cat, day };
-  if (F.id) Object.assign(pRules().find(x => x.id === F.id), data);
+  const data = { type: F.type, name, amount, currency: F.cur, account: F.account, cat: F.cat, day },
+    was = F.id;
+  if (was) Object.assign(pRules().find(x => x.id === was), data);
   else pRules().push(Object.assign({ id: newId(), start: pMonthNow(), end: null }, data));
   closeSheet();
   commit();
-  snack(F && F.id ? "Saved" : name + " added");
+  snack(was ? "Saved" : name + " added");
 }
 /* confirming one month: Tally's own entry sheet, prefilled, in the account's currency */
 function pConfirm(v) {
@@ -795,9 +722,7 @@ function pConfirm(v) {
   if (p)
     p.insertAdjacentHTML(
       "beforeend",
-      (r.currency !== a.currency
-        ? '<p class="hint">' + esc(money(r.amount, r.currency) + " at today's rate. Change it to what was really charged.") + "</p>"
-        : "") +
+      (r.currency !== a.currency ? '<p class="hint">' + esc(money(r.amount, r.currency) + " at today's rate. Change it to what was really charged.") + "</p>" : "") +
         '<button class="btn text" data-act="p-skip" data-v="' +
         esc(v) +
         '">Skip this month</button>'
@@ -811,7 +736,7 @@ function pSkip(v) {
   snack("Skipped this month");
 }
 
-/* ---------- account sheet: "counts as money I can use" ---------- */
+/* ---------- account sheet: "counts as money I can use", and Pay card ---------- */
 
 const tallyAccOpen = accOpen;
 accOpen = function (id) {
@@ -821,7 +746,7 @@ accOpen = function (id) {
   if (!a || !p) return;
   const extra =
     a.type === "card"
-      ? '<div class="gap"></div><button class="btn tonal" data-act="p-card" data-v="' + a.id + '">' + ic("card") + "Interest & payoff</button>"
+      ? (balances()[id] < 0 ? '<div class="gap"></div><button class="btn" data-act="p-pay" data-v="' + a.id + '">' + ic("swap") + "Pay card</button>" : "")
       : '<div class="list" style="margin-top:12px"><div class="setrow"><span class="mid"><div>Counts as money I can use</div><div class="s">Off for savings you don’t touch, like a fund</div></span><button class="sw" role="switch" data-act="p-avail" data-v="' +
         a.id +
         '" aria-checked="' +
@@ -838,7 +763,7 @@ settingsView = function () {
     i = h.indexOf("</header>") + "</header>".length,
     rules = pRules().slice().sort((a, b) => (a.type === b.type ? a.day - b.day : a.type === "income" ? -1 : 1));
   const mine =
-    '<div class="sec">Recurring income & bills</div>' +
+    pSecHead("Recurring income & bills", null, "p-rule-new", "expense", "Add recurring income or bill") +
     (rules.length
       ? '<div class="list">' +
         rules
@@ -860,18 +785,13 @@ settingsView = function () {
           )
           .join("") +
         "</div>"
-      : '<p class="hint" style="margin:0 4px">Salary, rent, subscriptions: each month they wait on Home until you confirm them.</p>') +
-    '<div class="row"><button class="btn text" data-act="p-rule-new" data-v="expense">' +
-    ic("add") +
-    'Bill</button><button class="btn text" data-act="p-rule-new" data-v="income">' +
-    ic("add") +
-    "Income</button></div>" +
+      : pEmpty("Salary, rent, subscriptions: each month they wait on Home until you confirm them.")) +
     '<div class="sec">Exchange rates</div><div class="list"><div class="setrow"><span class="mid"><div>' +
     esc(ratesLine()) +
-    '</div><div class="s">Totals are shown in your main currency (' +
+    '</div><div class="s">Totals are in your main currency (' +
     esc(pCur()) +
     ')</div></span><button class="btn tonal" data-act="p-fx-refresh">Refresh</button></div></div>' +
-    '<div class="sec">Try it</div><div class="list"><div class="setrow"><span class="mid"><div>Sample data</div><div class="s">Replaces everything here with an example notebook</div></span><button class="btn tonal" data-act="p-demo">Load</button></div></div>';
+    '<div class="sec">Try it</div><div class="list"><div class="setrow"><span class="mid"><div>Sample data</div><div class="s">Replaces everything here with an example</div></span><button class="btn tonal" data-act="p-demo">Load</button></div></div>';
   return h.slice(0, i) + mine + h.slice(i);
 };
 
@@ -880,9 +800,9 @@ settingsView = function () {
 function pDemo() {
   const go = () => {
     S = migrate(pDemoState());
-    PM = null;
     V.screen = "home";
     V.cur = null;
+    V.bm = null;
     commit();
     snack("Sample data loaded");
   };
@@ -895,29 +815,39 @@ function pDemoState() {
     m = pMonthNow(),
     prev = pAddMonths(m, -1),
     ts = n => Date.now() - n * 1000,
-    acc = (id, name, type, currency, opening, extra) => Object.assign({ id, name, type, currency, opening, archived: false }, extra || {});
+    account = (id, name, type, currency, opening, extra) => Object.assign({ id, name, type, currency, opening, archived: false }, extra || {});
+  const budget = (amount, currency) => ({ amount, currency: currency || "TRY" });
   return {
     v: 6,
     settings: { cur: "TRY", week: 1, clock: "24", lastCheck: t },
     accounts: [
-      acc("ziraat", "Ziraat", "bank", "TRY", 2450.75),
-      acc("zcard", "Ziraat card", "card", "TRY", -12380.4, { terms: { preset: "turkey", rate: 3.75, stmtDay: 5, dueDay: 15 } }),
-      acc("icard", "İş card", "card", "TRY", -4250, { terms: { preset: "turkey", rate: 4.25 } }),
-      acc("wisecz", "Wise CZK", "wallet", "CZK", 19420.5),
-      acc("wiseeu", "Wise EUR", "wallet", "EUR", 310),
-      acc("eurcash", "EUR cash", "cash", "EUR", 400),
-      acc("czkcash", "CZK cash", "cash", "CZK", 1250),
-      acc("fund", "Mutual fund", "savings", "TRY", 25000, { avail: false }),
+      account("ziraat", "Ziraat", "bank", "TRY", 2450.75),
+      account("zcard", "Ziraat card", "card", "TRY", -12380.4),
+      account("icard", "İş card", "card", "TRY", -4250),
+      account("wisecz", "Wise CZK", "wallet", "CZK", 19420.5),
+      account("wiseeu", "Wise EUR", "wallet", "EUR", 310),
+      account("eurcash", "EUR cash", "cash", "EUR", 400),
+      account("czkcash", "CZK cash", "cash", "CZK", 1250),
+      account("fund", "Mutual fund", "savings", "TRY", 25000, { avail: false }),
     ],
     assets: [
-      { id: "g1", name: "Touchable gold", kind: "gold", mg: 5000, touch: true, value: 0, currency: "TRY", i: "diamond", c: "#b8860b" },
-      { id: "g2", name: "Untouchable gold", kind: "gold", mg: 20000, touch: false, value: 0, currency: "TRY", i: "diamond", c: "#b8860b" },
+      { id: "g1", name: "Bracelet", kind: "gold", mg: 5000, touch: true, value: 0, currency: "TRY", i: "diamond", c: "#b8860b" },
+      { id: "g2", name: "Quarter coins", kind: "gold", mg: 20000, touch: false, value: 0, currency: "TRY", i: "diamond", c: "#b8860b" },
     ],
     rules: [
       { id: "salary", type: "income", name: "Salary", amount: 45000, currency: "TRY", account: "ziraat", cat: "income", day: 1, start: prev },
       { id: "dorm", type: "expense", name: "Dorm", amount: 6300, currency: "CZK", account: "wisecz", cat: "housing", day: 20, start: prev },
       { id: "ai", type: "expense", name: "AI subscription", amount: 20, currency: "USD", account: "zcard", cat: "bills", day: 28, start: prev },
     ],
+    budgets: {
+      groceries: budget(4000, "CZK"),
+      food: budget(2500),
+      transport: budget(1500),
+      housing: budget(15000),
+      bills: budget(1500),
+      shopping: budget(2000),
+      fun: budget(1000),
+    },
     txns: [
       { id: "s1", ts: ts(90), date: prev + "-01", type: "income", amount: 45000, account: "ziraat", cat: "income", note: "Salary", rule: "salary", rmonth: prev },
       { id: "s2", ts: ts(89), date: prev + "-20", type: "expense", amount: 6300, account: "wisecz", cat: "housing", note: "Dorm", rule: "dorm", rmonth: prev },
@@ -929,19 +859,29 @@ function pDemoState() {
         ["ai", "expense", 990.08, "zcard", "bills", 28, "AI subscription ($20.00)"],
       ]
         .filter(r => r[5] < +t.slice(8, 10))
-        .map(([rule, type, amount, account, cat, day, note], i) => ({
-          id: "c" + i, ts: ts(60 - i), date: m + "-" + String(day).padStart(2, "0"), type, amount, account, cat, note, rule, rmonth: m,
+        .map(([rule, type, amount, acc, cat, day, note], i) => ({
+          id: "c" + i,
+          ts: ts(60 - i),
+          date: m + "-" + String(day).padStart(2, "0"),
+          type,
+          amount,
+          account: acc,
+          cat,
+          note,
+          rule,
+          rmonth: m,
         })),
       { id: "e1", ts: ts(50), date: d(-3), type: "expense", amount: 452.3, account: "wisecz", cat: "groceries", note: "Albert" },
       { id: "e2", ts: ts(40), date: d(-2), type: "expense", amount: 185, account: "czkcash", cat: "food", note: "Canteen" },
       { id: "e3", ts: ts(30), date: d(-1), type: "expense", amount: 1240, account: "zcard", cat: "shopping", note: "Headphones case" },
       { id: "e4", ts: ts(20), date: t, type: "expense", amount: 38.5, account: "wiseeu", cat: "transport", note: "Train" },
       { id: "e5", ts: ts(10), date: t, type: "expense", amount: 129.9, account: "wisecz", cat: "groceries", note: "Lidl" },
+      { id: "e6", ts: ts(15), date: d(-5), type: "expense", amount: 650, account: "ziraat", cat: "health", note: "Pharmacy" },
       { id: "l1", ts: ts(80), date: d(-12), type: "loan", amount: 3400, account: "wisecz", dir: "in", loan: "fridge", principal: true },
       { id: "l2", ts: ts(70), date: d(-6), type: "loan", amount: 2000, account: "ziraat", dir: "out", loan: "lent", principal: true, due: d(20) },
     ],
     loans: [
-      { id: "fridge", ts: ts(80), kind: "borrow", person: "Roommate (fridge)", account: "wisecz", date: d(-12), note: "", status: "open" },
+      { id: "fridge", ts: ts(80), kind: "borrow", person: "Roommate", account: "wisecz", date: d(-12), note: "Fridge", status: "open" },
       { id: "lent", ts: ts(70), kind: "lend", person: "Friend", account: "ziraat", date: d(-6), note: "", status: "open" },
     ],
   };
@@ -949,6 +889,13 @@ function pDemoState() {
 
 /* ---------- clicks and typing ---------- */
 
+const pTab = v => {
+  closeSheet();
+  V.screen = v;
+  FLIP = v;
+  render();
+  scrollTo(0, 0);
+};
 document.addEventListener("click", ev => {
   const el = ev.target.closest("[data-act]");
   if (!el || !el.dataset.act.startsWith("p-")) return;
@@ -958,11 +905,7 @@ document.addEventListener("click", ev => {
       pChainSheet();
       break;
     case "p-tab":
-      closeSheet();
-      V.screen = v;
-      FLIP = v;
-      render();
-      scrollTo(0, 0);
+      pTab(v);
       break;
     case "p-demo":
       pDemo();
@@ -975,32 +918,42 @@ document.addEventListener("click", ev => {
         snack(PFX.date ? "Rates of " + dayLabel(PFX.date) : "Couldn't get rates (offline?)");
       });
       break;
-    case "p-card":
+    case "p-bm":
+      V.bm = pAddMonths(V.bm || pMonthNow(), +v);
+      render();
+      break;
+    case "p-budget":
+      pBudgetSheet(v);
+      break;
+    case "p-budget-save":
+      pBudgetSave();
+      break;
+    case "p-budget-del": {
+      const id = F.cat;
       closeSheet();
-      pCardSheet(v);
-      break;
-    case "p-terms":
-      pTermsForm(v);
-      break;
-    case "p-preset": {
-      F.preset = v;
-      setPressed("p-preset", v);
-      const p = P_PRESETS[v];
-      $("#p-tax").value = p.tax;
-      $("#p-minpct").value = p.minPct;
-      $("#p-late").value = p.late;
-      F.base = p.base;
-      setPressed("p-base", p.base);
-      $("#p-preset-hint").textContent = P_PRESET_HINT[v];
-      pTermsPreview();
+      delete pBudgets()[id];
+      commit();
+      snack(cat(id).name + ": no budget");
       break;
     }
-    case "p-base":
-      F.base = v;
-      setPressed("p-base", v);
+    case "p-addsav":
+      accForm();
+      pickType("savings");
       break;
-    case "p-terms-save":
-      pTermsSave();
+    case "p-addcard":
+      accForm();
+      pickType("card");
+      break;
+    case "p-addother":
+      openSheet(
+        "Add",
+        '<div class="list"><button class="tx" data-act="asset-edit">' +
+          emblem({ i: "diamond", c: "#a646c9" }, "em") +
+          '<span class="mid"><div class="d">Something I own</div><div class="s">A laptop, a car, a deposit</div></span></button>' +
+          '<button class="tx" data-act="loan-new" data-v="lend">' +
+          emblem(LOAN_EMB.lend, "em") +
+          '<span class="mid"><div class="d">Money I lent</div><div class="s">Shows here until it comes back</div></span></button></div>'
+      );
       break;
     case "p-pay":
       closeSheet();
@@ -1009,9 +962,6 @@ document.addEventListener("click", ev => {
         const to = $('#sheet [data-act="tr-to"][data-v="' + v + '"]');
         if (to) to.click();
       }
-      break;
-    case "p-allcards":
-      pAllCardsSheet();
       break;
     case "p-gold":
       pGoldForm(v);
@@ -1045,13 +995,13 @@ document.addEventListener("click", ev => {
       pRuleForm(null, v);
       break;
     case "p-rtype": {
-      const keep = { name: $("#p-rname").value, amt: $("#p-ramt").value, day: $("#p-rday").value };
-      const f = Object.assign({}, F, { type: v, cat: v === "income" ? "income" : "bills" });
-      if (v === "income" && acc(f.account) && acc(f.account).type === "card")
-        f.account = (activeAccounts().find(a => a.type !== "card") || {}).id || null;
-      openSheet(v === "income" ? "Recurring income" : "Recurring bill", "");
+      const keep = { name: $("#p-rname").value, amt: $("#p-ramt").value, day: $("#p-rday").value },
+        f = Object.assign({}, F, { type: v, cat: v === "income" ? "income" : "bills" });
+      if (v === "income" && acc(f.account) && acc(f.account).type === "card") f.account = (activeAccounts().find(a => a.type !== "card") || {}).id || null;
+      const r = f.id ? pRules().find(x => x.id === f.id) : null;
       F = f;
-      $("#sheet .p").insertAdjacentHTML("beforeend", pRuleBody(F.id ? pRules().find(x => x.id === F.id) : null));
+      openSheet(r ? r.name : v === "income" ? "Recurring income" : "Recurring bill", pRuleBody(r));
+      F = f; // openSheet keeps F, but be sure it's the new one
       $("#p-rname").value = keep.name;
       $("#p-ramt").value = keep.amt;
       $("#p-rday").value = keep.day;
@@ -1092,9 +1042,5 @@ document.addEventListener("click", ev => {
   }
 });
 document.addEventListener("input", ev => {
-  const id = ev.target && ev.target.id;
-  if (id === "p-fixed") pSimUpdate();
-  else if (id === "p-allamt") pAllCardsUpdate();
-  else if (id === "p-grams") pGoldPreview();
-  else if (["p-rate", "p-tax"].includes(id)) pTermsPreview();
+  if (ev.target && ev.target.id === "p-grams") pGoldPreview();
 });
