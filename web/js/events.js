@@ -744,7 +744,7 @@ function layerFocus() {
    the height comes back (a sheet's keyboard closed) */
 let lastW = innerWidth,
   lastH = innerHeight;
-const sizeClass = () => (phoneLand() ? 3 : innerWidth >= PANES_AT ? 2 : innerWidth >= RAIL_AT ? 1 : 0);
+const sizeClass = () => (phoneLand() ? 3 : innerWidth >= DESK_AT ? 4 : innerWidth >= PANES_AT ? 2 : innerWidth >= RAIL_AT ? 1 : 0);
 let lastC = sizeClass();
 addEventListener("resize", () => {
   const c = sizeClass(),

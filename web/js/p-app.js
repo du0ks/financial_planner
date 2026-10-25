@@ -404,7 +404,8 @@ function budgetView() {
     (b.missing ? '<div class="t small p-warn">' + esc(ratesLine()) + "</div>" : "") +
     "</div>";
   const rows = b.rows.slice().sort((x, y) => (x.budget === null) - (y.budget === null));
-  h +=
+  const top = h;
+  h =
     pSecHead("Categories", b.noBudget ? b.noBudget + " without a budget" : null) +
     '<div class="list">' +
     rows.map(r => pBudgetRow(r, cur)).join("") +
@@ -415,7 +416,13 @@ function budgetView() {
         "Spending in other currencies counts at the rate of its own day; budgets and bills at today's."
     ) +
     "</p>";
-  return h;
+  /* a wide screen: the month and its summary on the left, the categories beside it */
+  if (twoPane()) {
+    const head = top.slice(0, top.indexOf('<div class="p-month">')),
+      side = top.slice(top.indexOf('<div class="p-month">'));
+    return head + panes(side, h);
+  }
+  return top + h;
 }
 function pBudgetRow(r, cur) {
   const k = cat(r.cat),
@@ -949,6 +956,96 @@ function pDemoState() {
   };
 }
 
+/* ---------- a computer screen: side bar and keyboard ---------- */
+
+const pDesk = () => innerWidth >= DESK_AT && S.accounts.length > 0 && !phoneLand();
+const P_KEYS = [
+  ["N", "New expense"],
+  ["I", "Money in"],
+  ["T", "Transfer"],
+  ["1 – 4", "Home, Budget, Assets, Liabilities"],
+  ["H", "History"],
+  [",", "Settings"],
+  ["Enter", "Save the open form"],
+  ["Esc", "Close"],
+  ["?", "These shortcuts"],
+];
+/* the side bar: the name and logo, the everyday actions first, the tabs, then History and Settings */
+function pSidebar() {
+  const tab = (k, l, i, on) =>
+    '<button class="p-side-tab" data-act="' + (on ? "tab" : "go") + '" data-v="' + k + '"' + (V.screen === k ? ' aria-current="page"' : "") + ">" + ic(i) + "<span>" + esc(l) + "</span></button>";
+  return (
+    '<div class="p-side">' +
+    '<div class="p-brand"><img src="icon-512.png" alt=""><span>Prosperity</span></div>' +
+    '<button class="btn p-side-new" data-act="add-out">' +
+    ic("remove") +
+    "New expense<kbd>N</kbd></button>" +
+    '<div class="p-side-row"><button class="btn tonal" data-act="add-in">' +
+    ic("add") +
+    'Money in</button><button class="btn tonal" data-act="tr-new">' +
+    ic("swap") +
+    "Transfer</button></div>" +
+    '<div class="p-side-tabs">' +
+    P_TABS.map(([k, l, i]) => tab(k, l, i, true)).join("") +
+    "</div>" +
+    '<div class="p-side-tabs end">' +
+    tab("history", "History", "history") +
+    tab("settings", "Settings", "settings") +
+    '<button class="p-side-tab" data-act="p-keys">' +
+    ic("keyboard") +
+    "<span>Shortcuts</span><kbd>?</kbd></button></div></div>"
+  );
+}
+const tallyRender2 = render;
+render = function () {
+  tallyRender2();
+  const desk = pDesk();
+  document.body.classList.toggle("desk", desk);
+  if (desk) {
+    /* the side bar stays on every screen, History and Settings too */
+    document.body.classList.add("hasnav", "rail");
+    $("#nav").innerHTML = pSidebar();
+  }
+};
+function pKeysSheet() {
+  openSheet(
+    "Keyboard shortcuts",
+    '<div class="list">' +
+      P_KEYS.map(([k, l]) => '<div class="setrow"><span class="mid"><div>' + esc(l) + "</div></span><kbd>" + esc(k) + "</kbd></div>").join("") +
+      "</div>"
+  );
+}
+document.addEventListener("keydown", e => {
+  const t = e.target,
+    typing = t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable);
+  if (typing || e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+  if ($("#sheet").innerHTML || $("#pop").innerHTML) return; // a form or a dialog is open: its own keys
+  if (!activeAccounts().length && e.key !== "?") return;
+  const go = s => {
+    V.screen = s;
+    render();
+    scrollTo(0, 0);
+  };
+  const k = e.key.toLowerCase(),
+    act = {
+      n: () => txSheet(null, "expense"),
+      "-": () => txSheet(null, "expense"),
+      i: () => txSheet(null, "income"),
+      "+": () => txSheet(null, "income"),
+      t: () => trSheet(),
+      1: () => go("home"),
+      2: () => go("budget"),
+      3: () => go("assets"),
+      4: () => go("liabs"),
+      h: () => go("history"),
+      ",": () => go("settings"),
+      "?": pKeysSheet,
+    }[k];
+  if (!act) return;
+  e.preventDefault();
+  act();
+});
+
 /* ---------- clicks and typing ---------- */
 
 const pTab = v => {
@@ -965,6 +1062,9 @@ document.addEventListener("click", ev => {
   switch (el.dataset.act) {
     case "p-chain":
       pChainSheet();
+      break;
+    case "p-keys":
+      pKeysSheet();
       break;
     case "p-tab":
       pTab(v);

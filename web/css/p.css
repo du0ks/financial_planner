@@ -244,3 +244,130 @@ button.p-line span {
   margin: 8px auto 4px;
   display: block;
 }
+
+/* ---------- a computer screen (body.desk, 1200px+): a side bar with names, and room ---------- */
+body.desk.hasnav {
+  padding-left: 248px;
+}
+body.desk .nav {
+  width: 248px;
+  border-right: 1px solid var(--outline-variant);
+}
+body.desk main {
+  max-width: 1240px;
+}
+.p-side {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 20px 14px;
+  gap: 6px;
+}
+.p-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px 14px;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--on-surface);
+}
+.p-brand img {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+}
+.p-side .btn {
+  width: 100%;
+  justify-content: center;
+}
+.p-side-new {
+  height: 52px;
+}
+.p-side-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.p-side-row .btn {
+  height: 44px;
+  font-size: 0.85rem;
+  padding: 0 8px;
+}
+.p-side-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.p-side-tabs.end {
+  margin-top: auto;
+}
+body.desk .nav .p-side-tab {
+  height: 48px;
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 14px;
+  padding: 0 16px;
+  border-radius: 24px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  width: 100%;
+}
+body.desk .nav .p-side-tab .ic {
+  flex: none;
+}
+body.desk .nav .p-side-tab[aria-current="page"] {
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+  font-weight: 700;
+}
+.p-side kbd,
+.setrow kbd {
+  margin-left: auto;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--surface-highest);
+  color: var(--on-surface-variant);
+}
+.p-side-new kbd {
+  background: rgba(255, 255, 255, 0.22);
+  color: inherit;
+}
+/* the History and Settings buttons in the top bar are in the side bar already */
+body.desk .appbar .icon[data-act="go"] {
+  display: none;
+}
+/* a mouse: rows and chips answer to the pointer */
+@media (hover: hover) and (pointer: fine) {
+  .tx[data-act]:hover,
+  .chip:hover,
+  .p-side-tab:hover,
+  .balbar:hover {
+    box-shadow: inset 0 0 0 999px rgba(127, 127, 127, 0.08);
+    cursor: pointer;
+  }
+}
+/* the side bar's buttons are buttons, not bottom-bar tabs */
+body.desk .nav .p-side .btn {
+  flex-direction: row;
+  gap: 8px;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  background: var(--primary);
+  color: var(--on-primary);
+}
+body.desk .nav .p-side .btn.tonal {
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+  font-size: 0.85rem;
+}
+body.desk .nav .p-side .btn .ic {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}

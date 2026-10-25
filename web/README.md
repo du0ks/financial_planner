@@ -22,6 +22,12 @@ cd web && python3 -m http.server 8000      # http://localhost:8000
 - **Budgets**: one monthly amount per spending category; spending at its own day's rate, bills still to come at
   today's. Transfers, loan payments and their fees are never spending.
 
+## On a computer
+
+From 1200px wide there is a side bar (New expense, Money in, Transfer, the tabs, History, Settings) and keyboard
+shortcuts: N new expense, I money in, T transfer, 1–4 the tabs, H History, `,` Settings, Enter saves, Esc closes,
+? lists them.
+
 ## Files
 
 - `js/p-logic.js` — the money maths (rates, gold, the chain, recurring rules, budgets); no DOM, tested by Node.

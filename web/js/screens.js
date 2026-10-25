@@ -8,7 +8,8 @@ let FLIP = null;
    bottom bar and one column; from 600px a side rail; from 840px Home, Assets and Liabilities in two panes. A phone
    held sideways gets the rail and two panes too, with the ring alone on the left (body.land) */
 const RAIL_AT = 600,
-  PANES_AT = 840;
+  PANES_AT = 840,
+  DESK_AT = 1200; // a computer: a side bar with names, New expense and keyboard shortcuts (p-app.js)
 /* a phone held sideways: a short, wide window on a landscape screen. The screen's shape decides, not the window's,
    so the keyboard of an upright phone (which shortens the window) never switches the layout */
 const phoneLand = () =>

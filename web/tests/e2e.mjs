@@ -300,6 +300,45 @@ await step("dark", async () => {
   await b.shot(out + "/q_assets_dark.png", true);
   ok("no sideways scroll", (await b.js("document.documentElement.scrollWidth")) <= 390);
 });
+await step("computer screen", async () => {
+  const d = await launch({ width: 1440, height: 900 });
+  try {
+    await d.go(APP_URL);
+    await d.wait(800);
+    ok("no side bar before there is anything to show", await d.js("!document.body.classList.contains('desk')"));
+    await d.click('[data-act="p-demo"]');
+    await d.wait(1500);
+    const press = k => d.js(`document.dispatchEvent(new KeyboardEvent("keydown", {key: ${JSON.stringify(k)}, bubbles: true})); true`);
+    ok("side bar on a computer", await d.js("document.body.classList.contains('desk') && !!document.querySelector('.p-side')"));
+    ok("Prosperity and its logo at the top", (await d.js("document.querySelector('.p-brand').innerText")) === "Prosperity");
+    await press("n");
+    ok("N opens a new expense", await d.js("F && F.kind === 'tx' && F.type === 'expense'"));
+    await press("Escape");
+    await d.wait(200);
+    ok("Esc closes it", await d.js("!document.querySelector('#sheet').innerHTML"));
+    await press("2");
+    ok("2 goes to Budget, in two columns", await d.js("V.screen === 'budget' && !!document.querySelector('#app .panes')"));
+    await press("h");
+    ok("H goes to History, side bar still there", await d.js("V.screen === 'history' && !!document.querySelector('.p-side')"));
+    await press("t");
+    ok("T opens a transfer", await d.js("F && F.kind === 'tr'"));
+    await press("Escape");
+    await press("?");
+    ok("? lists the shortcuts", (await d.js("document.querySelector('#sheet').innerText")).includes("New expense"));
+    await press("Escape");
+    for (const k of ["1", "2", "3", "4"]) {
+      await press(k);
+      await d.wait(150);
+      if ((await d.js("document.documentElement.scrollWidth")) > 1440) ok("no sideways scroll on tab " + k, false);
+    }
+    await d.shot(out + "/desk_liabs.png");
+    ok("typing in a field doesn't trigger shortcuts", await d.js(`(() => { txSheet(null, "expense"); const i = document.querySelector("#f-amt"); i.focus(); i.dispatchEvent(new KeyboardEvent("keydown", {key: "2", bubbles: true})); return V.screen === "liabs" && F.kind === "tx"; })()`));
+    const errs = d.logs.filter(l => /error/i.test(l));
+    ok("no errors on the computer screen", errs.length === 0, errs.join(" ; "));
+  } finally {
+    await d.close();
+  }
+});
 const errs = b.logs.filter(l => /error/i.test(l));
 ok("no errors in the console", errs.length === 0, errs.join(" ; "));
 console.log(fails ? fails + " FAILED" : "ALL PASSED");
