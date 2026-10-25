@@ -29,6 +29,9 @@ export default defineConfig({
       workbox: {
         cleanupOutdatedCaches: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}'],
+        // /tally/ is a separate app (the Tally-based prototype): never cache it here or answer it with this app's page.
+        globIgnores: ['tally/**'],
+        navigateFallbackDenylist: [/\/tally\//],
         runtimeCaching: [
           {
             // Historical rates never change once published; today's are refreshed when online.

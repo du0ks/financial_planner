@@ -1,0 +1,2639 @@
+/* Onest (SIL Open Font License 1.1, see fonts/OFL.txt), bundled so the app works offline and never
+   contacts a font server. Variable weight 100–900; latin, latin-ext and cyrillic subsets. */
+@font-face {
+  font-family: "Onest";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url(../fonts/onest-cyrillic.woff2) format("woff2");
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+@font-face {
+  font-family: "Onest";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url(../fonts/onest-latin-ext.woff2) format("woff2");
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F,
+    U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Onest";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url(../fonts/onest-latin.woff2) format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC,
+    U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+body {
+  /* an app, not a document: long-pressing labels, rows or empty space never starts a text selection */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  margin: 0;
+  background: var(--surface);
+  color: var(--on-surface);
+  font-family:
+    "Onest",
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  font-size: 1rem; /* every size in rem follows the phone's text size (applyTextScale) */
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+button {
+  cursor: pointer;
+  border: 0;
+  background: none;
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+}
+button:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+[hidden] {
+  display: none !important;
+}
+/* state layer */
+button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+  border-radius: inherit;
+}
+/* pressed: the state layer shows at once (no delay), then fades out on release. Set from touch events (.pressed),
+   because :active is unreliable for touch in a WebView */
+@media (hover: hover) {
+  button:not(:disabled):hover::before {
+    opacity: 0.08;
+  }
+}
+button.pressed:not(:disabled)::before {
+  opacity: 0.1;
+  transition: none;
+}
+/* category tiles (Home ring, Settings ring and grid) have no state-layer squircle: while pressed, the icon pops up a
+   little and glows in its own colour (--ec, set by emblem()), and settles back on release */
+button.cat.pressed:not(:disabled)::before {
+  opacity: 0;
+}
+button.cat {
+  overflow: visible; /* let the pop and glow spill past the tile instead of being cut into a square */
+}
+.cat .ci {
+  transition:
+    transform 0.18s cubic-bezier(0.2, 0, 0, 1),
+    box-shadow 0.18s;
+}
+.cat.pressed .ci {
+  transform: scale(1.14);
+  box-shadow: 0 0 14px 2px var(--ec, transparent);
+  transition-duration: 0.09s;
+}
+/* just saved: the Home tile pops once the same way, so you see where the money went (FX.cat) */
+.cat.saved .ci {
+  animation: catpop 0.32s cubic-bezier(0.2, 0, 0, 1);
+}
+@keyframes catpop {
+  40% {
+    transform: scale(1.14);
+    box-shadow: 0 0 14px 2px var(--ec, transparent);
+  }
+}
+/* in Settings (hold to drag) only the slight enlargement, no glow */
+.ring.edit .cat.pressed .ci,
+.cgrid .cat.pressed .ci {
+  box-shadow: none;
+}
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+/* inside a box that clips what it holds, the ring is drawn just inside the control, so it shows whole */
+.list :focus-visible,
+.seg :focus-visible {
+  outline-offset: -2px;
+}
+.ic {
+  width: 24px;
+  height: 24px;
+  fill: currentColor;
+  display: block;
+  flex: none;
+}
+main {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 0 16px 24px;
+}
+.muted {
+  color: var(--on-surface-variant);
+}
+a {
+  color: var(--primary);
+  text-decoration: none;
+}
+.small {
+  font-size: 0.85rem;
+}
+.spent {
+  color: var(--spent);
+}
+.got {
+  color: var(--got);
+}
+.xfer {
+  color: var(--xfer);
+}
+
+/* top app bar */
+.appbar {
+  display: flex;
+  align-items: center;
+  height: 64px;
+  margin: 0 -8px;
+}
+.appbar h1 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  margin: 0 0 0 4px;
+  flex: 1;
+  letter-spacing: -0.01em;
+}
+.icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--on-surface-variant);
+  flex: none;
+}
+.pnav {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+.plabel {
+  min-height: 48px;
+  min-width: 0;
+  padding: 0 12px 0 16px;
+  border-radius: 24px;
+  font-size: 1.25rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.plabel .ic {
+  width: 20px;
+  height: 20px;
+  color: var(--on-surface-variant);
+  flex: none;
+}
+.plabel > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.month .plabel {
+  font-size: 1.05rem;
+  margin: 0 auto;
+  padding: 0 8px 0 12px;
+}
+/* the period arrows keep their whole 48px to tap but lie over the label's padding (on top of it), so the label keeps
+   its room next to them; .appbar has no gap for the same reason (each icon's box already spaces its glyph) */
+.pnav > .icon {
+  position: relative;
+  z-index: 1;
+}
+.pnav > .icon:first-child {
+  margin-right: -10px;
+}
+.pnav > .icon:last-child {
+  margin-left: -6px;
+}
+.pnav .plabel {
+  font-size: clamp(1.05rem, 4.6vw, 1.25rem);
+  padding: 0 6px 0 10px;
+}
+/* a phone held sideways: the upright phone's size (vw is the long side there) */
+body.land .pnav .plabel {
+  font-size: 1.05rem;
+}
+body.land .pnav .plabel.long {
+  font-size: 0.9rem;
+}
+.pnav .plabel.long {
+  font-size: clamp(0.9rem, 4vw, 1.15rem);
+  letter-spacing: -0.02em;
+}
+
+/* account balance strip */
+.strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin: 0 -16px;
+  padding: 4px 16px 8px;
+  scrollbar-width: none;
+}
+.strip::-webkit-scrollbar {
+  display: none;
+}
+.acc {
+  flex: none;
+  min-width: 112px;
+  background: var(--surface-container);
+  border-radius: 16px;
+  padding: 10px 14px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/* the emblem, then the name in its own direction (a right-to-left one cut at its own end) */
+.acc .n {
+  display: flex;
+  align-items: center;
+  max-width: 152px; /* a long name is cut; the balance below never is */
+  font-size: 0.78rem;
+  color: var(--on-surface-variant);
+  white-space: nowrap;
+}
+.acc .n > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.acc .b {
+  font-weight: 600;
+  font-size: 1rem;
+  white-space: nowrap;
+}
+.acc.add {
+  min-width: 56px;
+  align-items: center;
+  justify-content: center;
+  color: var(--on-surface-variant);
+  background: transparent;
+  border: 1px dashed var(--outline-variant);
+}
+
+/* morning check */
+.check {
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+  border-radius: 24px;
+  padding: 16px;
+  margin: 4px 0 8px;
+}
+.check h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.check p {
+  margin: 2px 0 10px;
+  font-size: 0.9rem;
+  opacity: 0.85;
+}
+/* a balance check row: the icon with the name, then the balance with Fix, each pair moving as one. A name too long to
+   sit beside the balance gets the whole line (keeping its words, beside its icon), and the balance and Fix go below it,
+   on the right */
+.ckrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  width: 100%;
+  padding: 10px 8px;
+  border-radius: 12px;
+  text-align: left;
+}
+.ckrow .ckn {
+  flex: 1 1 auto; /* its own width: a row breaks only when the name really doesn't fit */
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ckrow .nm {
+  min-width: 0;
+  overflow-wrap: anywhere; /* the whole name, on two lines if need be: this is where balances are checked */
+}
+/* the balance and Fix move as one; if even they don't fit on one line, Fix goes under the balance, still on the right */
+.ckrow .ckv {
+  flex: none;
+  max-width: 100%;
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px 10px;
+}
+.ckrow b {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ckrow .fx {
+  flex: none;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  opacity: 0.8;
+}
+.check .btn {
+  margin-top: 10px;
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+/* category ring */
+.ring {
+  position: relative;
+  margin: 4px -4px 0;
+  touch-action: pan-y;
+}
+/* History: sideways swipes belong to the app (they switch the account filter); the chip strip still scrolls itself */
+body.hist #app {
+  touch-action: pan-y;
+}
+.ring.edit {
+  margin: 0 -4px;
+  background: var(--surface-container);
+  border-radius: 20px;
+}
+.leaders {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+.cat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 2px;
+  border-radius: 16px;
+  min-width: 0;
+}
+.cat .ci {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 1.45rem;
+}
+.cat .cn {
+  font-size: 0.72rem;
+  color: var(--on-surface-variant);
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cat .cp {
+  font-size: 0.72rem;
+  font-weight: 700;
+  min-height: 1em;
+}
+.dwrap {
+  position: absolute;
+  z-index: 1;
+  display: block;
+  padding: 0;
+  border-radius: 50%;
+}
+.dwrap::before {
+  display: none;
+}
+.donut {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.rt {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2px;
+  padding: 4px 0 0;
+  border-radius: 16px;
+  /* Settings ring: tiles slide to their new slot while one is dragged (Material "emphasized decelerate") */
+  transition:
+    left 0.22s cubic-bezier(0.2, 0, 0, 1),
+    top 0.22s cubic-bezier(0.2, 0, 0, 1);
+}
+.rt .ci {
+  width: var(--d);
+  height: var(--d);
+  font-size: calc(var(--d) * 0.5);
+}
+.rt .cn,
+.rt .cp {
+  font-size: var(--f);
+  line-height: 1.3; /* tall enough for descenders (g, y) inside the clipped name */
+}
+.rt .cp {
+  line-height: 1.1; /* digits only, no descenders: the tightest line */
+}
+.rt .cn {
+  max-width: 92%; /* a little air between neighbouring names in a full ring */
+  flex-shrink: 0; /* whole or not at all (ringHTML leaves out a name that has no room) */
+}
+.dcenter {
+  position: absolute;
+  inset: 0;
+  padding: 0 18%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  pointer-events: none;
+}
+.dcenter .g {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--got);
+}
+.dcenter .s {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--spent);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.dcenter .s.in {
+  color: var(--got);
+}
+/* Settings preview: the donut's hole with the current choice; it swells a little while pressed */
+.ring.edit .dwrap {
+  overflow: visible;
+}
+.ring.edit .dcenter {
+  isolation: isolate; /* keeps .dhole inside it, above the donut */
+  transition: transform 0.18s cubic-bezier(0.2, 0, 0, 1);
+}
+.ring.edit .dwrap.pressed .dcenter {
+  transform: scale(1.08);
+  transition-duration: 0.09s;
+}
+.dhole {
+  position: absolute;
+  inset: 16%;
+  border-radius: 50%;
+  background: var(--surface);
+  z-index: -1;
+}
+.dcenter .dmode {
+  font-size: clamp(0.8rem, calc(var(--D, 160px) * 0.085), 1rem);
+  font-weight: 600;
+  line-height: 1.25;
+}
+.dcenter .s.zero {
+  color: var(--on-surface-variant);
+  font-weight: 600;
+}
+.dcenter .hint {
+  font-size: clamp(0.66rem, calc(var(--D, 160px) * 0.07), 0.8rem);
+  color: var(--on-surface-variant);
+  margin-top: 2px;
+  line-height: 1.25;
+}
+.curbtn {
+  position: relative;
+  pointer-events: auto;
+  margin-top: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--surface-high);
+  color: var(--on-surface-variant);
+}
+/* 48px to tap, reaching mostly into the empty hole below it (the amount above stays the summary's) */
+.curbtn::after {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: -4px;
+  right: -4px;
+  height: 48px;
+}
+
+/* balance bar + fabs */
+/* a balance too long for the line moves under the label, still on the right */
+.balbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 12px;
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+  border-radius: 20px;
+  padding: 14px 16px;
+  text-align: left;
+}
+.balbar .l {
+  flex: 1 1 auto;
+  font-size: 0.9rem;
+}
+.balbar b {
+  margin-left: auto;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.balbar .ic {
+  opacity: 0.7;
+}
+.fabs {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  margin-top: 18px;
+}
+.fab {
+  width: 84px;
+  height: 84px;
+  border-radius: 28px;
+  display: grid;
+  place-items: center;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    0 2px 6px rgba(0, 0, 0, 0.06);
+}
+.fab .ic {
+  width: 36px;
+  height: 36px;
+}
+.fab.minus {
+  background: var(--minus-bg);
+  color: var(--minus-fg);
+}
+.fab.plus {
+  background: var(--plus-bg);
+  color: var(--plus-fg);
+}
+.fab.xfer {
+  width: 76px;
+  height: 64px;
+  border-radius: 20px;
+  background: var(--surface-high);
+  color: var(--on-surface-variant);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.fab.xfer .ic {
+  width: 26px;
+  height: 26px;
+}
+
+/* generic */
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px; /* grows to two lines rather than cutting a label off (large text, narrow screens) */
+  border-radius: 24px;
+  padding: 6px 20px;
+  line-height: 1.2;
+  text-align: center;
+  font-weight: 600;
+  background: var(--primary);
+  color: var(--on-primary);
+}
+/* buttons side by side keep their label on one line a little longer */
+.row > .btn {
+  padding-left: 12px;
+  padding-right: 12px;
+}
+.btn.tonal {
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+}
+.btn.text {
+  background: transparent;
+  color: var(--primary);
+}
+.btn.danger {
+  background: transparent;
+  color: var(--spent);
+  border: 1px solid var(--outline-variant);
+}
+.btn .ic {
+  width: 20px;
+  height: 20px;
+}
+.row {
+  display: flex;
+  gap: 8px;
+}
+.row > * {
+  flex: 1;
+  min-width: 0;
+}
+/* note and date side by side, the date below the note on a narrow screen */
+.row.notedate {
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.row.notedate > input {
+  flex: 2 1 170px;
+}
+.row.notedate > .nd-date {
+  flex: 1 1 130px;
+}
+.gap {
+  height: 8px;
+}
+.chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+#f-person-sug {
+  margin-top: 8px;
+}
+.chip {
+  min-height: 48px;
+  max-width: 100%;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--outline-variant);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--on-surface-variant);
+  white-space: nowrap;
+}
+.strip .chip {
+  flex-shrink: 0;
+}
+.chip[aria-pressed="true"] {
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+  border-color: transparent;
+}
+.chip[aria-pressed="true"]::after {
+  content: "✓";
+  font-size: 0.8rem;
+  flex: none;
+}
+/* a name in its chip (an account, person, type or category): cut with "…" when it doesn't fit, the emblem and ✓
+   stay whole */
+.chip .chn {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chip > .emb {
+  flex: none;
+}
+.smc {
+  display: flex;
+  align-items: stretch;
+  height: 170px;
+  border-bottom: 1px solid var(--outline-variant);
+  margin: 4px 0 0;
+}
+.smcol {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0 6px;
+  border-radius: 12px;
+}
+.smcol .v {
+  font-size: 0.72rem;
+  color: var(--on-surface-variant);
+  height: 1.1em;
+  white-space: nowrap;
+}
+.smcol .bw {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.smcol .b {
+  width: min(60%, 26px);
+  border-radius: 4px 4px 0 0;
+  background: var(--spent);
+  opacity: 0.45;
+}
+.smcol .x {
+  font-size: 0.72rem;
+  color: var(--on-surface-variant);
+  white-space: nowrap;
+}
+.smcol.on .b {
+  opacity: 1;
+}
+.smcol.on .v,
+.smcol.on .x {
+  color: var(--on-surface);
+  font-weight: 700;
+}
+.smchart {
+  touch-action: pan-y;
+}
+.smrows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+}
+.smrow {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 8px;
+  border-radius: 10px;
+  text-align: left;
+}
+.smrow .x {
+  font-size: 0.8rem;
+  color: var(--on-surface-variant);
+  white-space: nowrap;
+  min-width: 92px;
+}
+.smrow .tr {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--surface-high);
+  overflow: hidden;
+}
+.smrow .b {
+  display: block;
+  height: 100%;
+  border-radius: 5px;
+  background: var(--spent);
+  opacity: 0.45;
+}
+.smrow .v {
+  font-size: 0.8rem;
+  color: var(--on-surface-variant);
+  min-width: 40px;
+  text-align: right;
+}
+.smrow.on .b {
+  opacity: 1;
+}
+.smrow.on .x,
+.smrow.on .v {
+  color: var(--on-surface);
+  font-weight: 700;
+}
+.smpie {
+  position: relative;
+  width: 190px;
+  height: 190px;
+  margin: 8px auto 0;
+}
+.smpie svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.smpie .c {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.smpie .c b {
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
+}
+.smpie .c span {
+  font-size: 0.8rem;
+  color: var(--on-surface-variant);
+}
+.smd {
+  text-align: center;
+  padding: 14px 0 6px;
+}
+.smd .big {
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.smtop .tx {
+  padding: 10px 14px;
+}
+.pbar {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-highest);
+  margin-top: 6px;
+  overflow: hidden;
+}
+.pbar span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+}
+.dlg-t {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: 6px 4px 8px;
+}
+.dlg-x {
+  margin: 0 4px 8px;
+  color: var(--on-surface-variant);
+  line-height: 1.45;
+}
+.dlg-t,
+.dlg-x {
+  overflow-wrap: anywhere; /* names quoted whole, however long */
+}
+.btn.text.dng {
+  color: var(--spent);
+}
+.dlg-act.stack {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+}
+.dlg-act.stack .btn {
+  width: auto;
+}
+.chip.addnew {
+  border-style: dashed;
+  border-color: var(--outline);
+  color: var(--on-surface-variant);
+  opacity: 0.8;
+}
+.chip.addnew .ic {
+  width: 18px;
+  height: 18px;
+}
+.dot.addnew {
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--outline);
+  color: var(--on-surface-variant);
+  background: transparent;
+}
+.dot.addnew .ic {
+  width: 18px;
+  height: 18px;
+}
+.lbl {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--on-surface-variant);
+  margin: 16px 0 8px;
+}
+.lbl.set {
+  margin: 12px 4px 8px;
+}
+.field {
+  display: block;
+  margin: 12px 0 0;
+}
+.field > span {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--on-surface-variant);
+  margin-bottom: 6px;
+}
+input {
+  width: 100%;
+  height: 52px;
+  padding: 0 14px;
+  border: 1px solid var(--outline);
+  border-radius: 12px;
+  background: transparent;
+  outline: none;
+}
+input:focus {
+  border: 2px solid var(--primary);
+  padding: 0 13px;
+}
+input:focus-visible {
+  outline: 0;
+}
+.amtwrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 2px solid var(--primary);
+  padding: 4px 2px;
+  margin-top: 8px;
+}
+.amtwrap .cur {
+  font-weight: 600;
+  color: var(--on-surface-variant);
+  font-size: 1.1rem;
+}
+.amtwrap input {
+  border: 0;
+  height: 64px;
+  padding: 0;
+  font-size: min(2.4rem, 12vw); /* a long amount still fits a narrow phone */
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  caret-color: var(--primary);
+}
+.amtwrap input:focus {
+  border: 0;
+  padding: 0;
+}
+.amtwrap input:focus-visible {
+  outline: 0;
+}
+.amtwrap:focus-within {
+  border-bottom-width: 3px;
+  margin-bottom: -1px;
+}
+.amtwrap .calcbtn {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  border-radius: 16px;
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+}
+.amtwrap .calcbtn .ic {
+  width: 26px;
+  height: 26px;
+}
+/* while the calculator is open its button moves to the keypad (as the keyboard switch) */
+.amtwrap.calcing .calcbtn {
+  display: none;
+}
+.amtbox {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.amtbox.calcing input {
+  color: transparent;
+}
+.caretmirror {
+  position: absolute;
+  inset: 0;
+  line-height: 64px;
+  font-size: min(2.4rem, 12vw);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--on-surface);
+  white-space: pre;
+  /* scrolls sideways once the expression is wider than the field; the caret is kept in view (calcCaretIntoView) */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+  padding-right: 14px;
+  cursor: text;
+}
+.caretmirror::-webkit-scrollbar {
+  display: none;
+}
+.caretmirror .blink {
+  display: inline-block;
+  width: 3px;
+  border-radius: 2px;
+  height: 2.6rem;
+  margin-left: 2px;
+  vertical-align: middle;
+  background: var(--primary);
+  animation: blink 1s step-end infinite;
+}
+@keyframes blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+.calc {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-width: 560px; /* as wide as the sheet it belongs to, centred on a tablet */
+  margin: 0 auto;
+  z-index: 25;
+  background: var(--surface-low);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  padding: 6px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.22);
+  animation: up 0.18s cubic-bezier(0.2, 0, 0, 1);
+}
+/* typing fields keep normal selection, caret and paste */
+input {
+  user-select: text;
+  -webkit-user-select: text;
+}
+.calc button {
+  height: 56px;
+  border-radius: 12px;
+  background: var(--surface-high);
+  font-weight: 600;
+  font-size: 1.15rem;
+}
+.calc button.op {
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+  font-size: 1.75rem;
+  font-weight: 500;
+  line-height: 1;
+}
+/* keypad top bar: live result, and the switch back to the system keyboard */
+.calcbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 44px;
+  padding-left: 6px;
+}
+.calcres {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--on-surface-variant);
+}
+.calc .kbdbtn {
+  width: 52px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+}
+.calc .kbdbtn .ic {
+  width: 26px;
+  height: 26px;
+}
+.calc button.del {
+  color: var(--spent);
+  font-size: 1.2rem;
+}
+.preview {
+  font-size: 0.85rem;
+  color: var(--on-surface-variant);
+  background: var(--surface-high);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-top: 12px;
+}
+.preview:empty {
+  display: none;
+}
+.hint {
+  font-size: 0.8rem;
+  color: var(--on-surface-variant);
+  margin: 6px 2px 0;
+}
+.catgrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+/* room under the icon for the selected ring (5px) without the label moving when a category is picked */
+.catgrid .cat {
+  gap: 9px;
+}
+.catgrid .cat[aria-pressed="true"] .ci {
+  box-shadow:
+    0 0 0 3px var(--surface-low),
+    0 0 0 5px var(--primary);
+}
+.catchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 48px;
+  padding: 0 14px 0 6px;
+  border-radius: 24px;
+  background: var(--surface-high);
+  font-weight: 600;
+}
+.catchip .ci {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 1.1rem;
+}
+.catchip .ic {
+  width: 18px;
+  height: 18px;
+  color: var(--on-surface-variant);
+  transition: transform 0.15s;
+}
+.catchip[aria-expanded="true"] .ic {
+  transform: rotate(180deg);
+}
+
+/* lists */
+.list {
+  background: var(--surface-container);
+  border-radius: 20px;
+  overflow: hidden;
+}
+.day {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--on-surface-variant);
+  padding: 16px 14px 8px;
+}
+.tx {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 14px;
+  text-align: left;
+  border-radius: 0;
+}
+.tx + .tx {
+  border-top: 1px solid var(--outline-variant);
+}
+.tx .em {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 1.15rem;
+  flex: none;
+  background: var(--surface-high);
+}
+.tx .mid {
+  flex: 1;
+  min-width: 0;
+}
+.tx .d {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tx .s {
+  font-size: 0.8rem;
+  color: var(--on-surface-variant);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* an amount and a balance are never cut: the title, then the account name in the balance line give way to them */
+.tx .a {
+  font-weight: 600;
+  white-space: nowrap;
+  text-align: right;
+  min-width: min-content;
+  max-width: 55%; /* the title keeps at least the rest; the balance line below gives way first */
+}
+.tx.on {
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+}
+.tx .em.pick {
+  background: transparent;
+  color: var(--primary);
+}
+.tx .code {
+  font-weight: 700;
+  width: 44px;
+  flex: none;
+}
+.tx > .ic {
+  color: var(--primary);
+}
+/* the lines under an amount are sized in em, not rem: they follow the amount when fitFigures() sets it smaller */
+.tx .a small {
+  display: block;
+  font-weight: 400;
+  font-size: 0.75em;
+  color: var(--on-surface-variant);
+}
+/* the balance line: [arrow] name balance. The name's column shrinks to nothing (its name cut with "…") but may grow
+   as wide as the name, so a long name never makes the amount's column wider than the amount and balance need */
+.tx .a .rb {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) auto;
+  justify-content: end;
+  column-gap: 0.3em;
+  font-weight: 500;
+  font-size: 0.72em;
+  color: var(--on-surface-variant);
+}
+.tx .a .rb.ar {
+  grid-template-columns: auto minmax(0, max-content) auto;
+}
+.tx .a .rbn {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tx .s .st {
+  margin-right: 2px;
+  vertical-align: 1px;
+}
+/* alone on its line (a loan card's payment rows): in a narrow row it ends in "…" rather than lose letters */
+.tx.exp .s .st {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
+}
+.tx.exp {
+  flex-wrap: wrap;
+  row-gap: 0;
+  padding: 0;
+}
+.tx .txh {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 100%;
+  min-width: 0;
+  padding: 12px 14px;
+  text-align: left;
+  border-radius: 0;
+}
+.tx .more {
+  display: none;
+  flex-basis: 100%;
+  font-size: 0.85rem;
+  color: var(--on-surface-variant);
+  padding: 0 14px 14px 66px;
+  margin-top: -6px;
+  line-height: 1.4;
+}
+.tx.open .more {
+  display: block;
+}
+.tx .more .medit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 4px;
+  margin: 4px 0 0 -8px;
+}
+.tx .more .medit .btn {
+  width: auto;
+  height: 36px;
+  padding: 0 8px;
+  font-size: 0.85rem;
+}
+.tx .more .medit .btn .ic {
+  width: 18px;
+  height: 18px;
+}
+.tx .chev {
+  display: grid;
+  place-items: center;
+  color: var(--on-surface-variant);
+  margin-left: -4px;
+}
+.tx .chev .ic {
+  width: 20px;
+  height: 20px;
+  transition: transform 0.15s;
+}
+.tx.open .chev .ic {
+  transform: rotate(180deg);
+}
+.empty {
+  text-align: center;
+  padding: 28px 12px;
+  color: var(--on-surface-variant);
+}
+.sec {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--primary);
+  margin: 24px 4px 8px;
+}
+.sec.center {
+  text-align: center;
+}
+.welcome {
+  text-align: center;
+  padding: 48px 16px;
+}
+.welcome .big {
+  font-size: 3rem;
+}
+.welcome h2 {
+  font-size: 1.4rem;
+  margin: 12px 0 6px;
+}
+.welcome p {
+  color: var(--on-surface-variant);
+  margin: 0 0 24px;
+}
+.welcome .fieldbtn {
+  max-width: 320px;
+  margin: 0 auto 16px;
+}
+.month {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface-container);
+  border-radius: 24px;
+  padding: 4px;
+}
+.seg {
+  display: flex;
+  border: 1px solid var(--outline);
+  border-radius: 24px;
+  overflow: hidden;
+}
+.seg button {
+  flex: 1;
+  min-height: 48px;
+  font-weight: 500;
+  font-size: 0.9rem;
+  border-radius: 0;
+}
+.seg button + button {
+  border-left: 1px solid var(--outline);
+}
+.seg button[aria-pressed="true"] {
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+}
+.hero {
+  text-align: center;
+  padding: 4px 0 8px;
+}
+.hero .t {
+  font-size: 0.85rem;
+  color: var(--on-surface-variant);
+}
+.hero .v {
+  font-size: 2.2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.card {
+  background: var(--surface-container);
+  border-radius: 20px;
+  padding: 16px;
+  margin-top: 12px;
+}
+.card h3 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+/* sheet, dialog layer, snackbar */
+.sheet {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.32);
+  z-index: 10;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.sheet .p {
+  overscroll-behavior: contain;
+  background: var(--surface-low);
+  width: 100%;
+  max-width: 560px;
+  max-height: 94%;
+  overflow: auto;
+  border-radius: 28px 28px 0 0;
+  padding: 8px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+  animation: up 0.22s cubic-bezier(0.2, 0, 0, 1);
+}
+.sheet .handle {
+  width: 32px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--outline-variant);
+  margin: 6px auto 10px;
+}
+.sheet .h {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 40px;
+  margin-bottom: 4px;
+}
+/* a long name (an e-mail, an IBAN) wraps rather than push the close button off the sheet */
+.sheet .h h2 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@keyframes up {
+  from {
+    transform: translateY(40px);
+    opacity: 0.5;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.pop {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+}
+.snack {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  background: var(--on-surface);
+  color: var(--surface);
+  min-height: 48px;
+  padding: 6px 8px 6px 16px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  z-index: 20;
+  width: calc(100% - 32px);
+  max-width: 480px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
+}
+.snack span {
+  flex: 1;
+}
+.snack button {
+  color: var(--primary-container);
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 20px;
+}
+.vh {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+/* emblems */
+.emb {
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+}
+.emb svg {
+  width: 58%;
+  height: 58%;
+  display: block;
+}
+.emb .emo {
+  line-height: 1;
+}
+.emb.sm {
+  width: 22px;
+  height: 22px;
+  font-size: 0.7rem;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+.acc .n .emb.sm {
+  width: 20px;
+  height: 20px;
+}
+.cprevbtn {
+  border-radius: 50%;
+}
+.icgrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  justify-items: center;
+  padding: 4px 0;
+}
+.icbtn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+.icbtn .emb {
+  width: 48px;
+  height: 48px;
+}
+.icbtn[aria-pressed="true"] {
+  box-shadow:
+    0 0 0 3px var(--surface-low),
+    0 0 0 5px var(--primary);
+}
+/* a 34px dot in a 48px touch target: the padding is clear (so no gap between them), the selection ring sits at its
+   edge */
+.dots .dot {
+  width: 48px;
+  height: 48px;
+  padding: 7px;
+  background-clip: content-box;
+}
+.dots .dot[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 2px var(--on-surface);
+}
+/* "add your own colour": 48px to tap like the swatches, its dashed ring drawn the swatches' size (on ::after:
+   ::before is the pressed state layer) */
+.dots .dot.addnew {
+  position: relative;
+  border: 0;
+}
+.dots .dot.addnew::after {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border: 2px dashed var(--outline);
+  border-radius: 50%;
+  pointer-events: none;
+}
+/* date picker header, time grid */
+.dp-h {
+  padding: 4px 8px 8px;
+  border-bottom: 1px solid var(--outline-variant);
+  margin-bottom: 4px;
+}
+.dp-h .t {
+  font-size: 0.8rem;
+  color: var(--on-surface-variant);
+}
+.dp-h .big {
+  font-size: 1.6rem;
+  font-weight: 600;
+}
+/* time picker: scroll wheels like the phone's clock (hours : minutes [AM/PM]); 3 rows of 56px (W_ROW in layers.js),
+   the middle one bold and bright, its neighbours faded; rows snap to the middle */
+.wheel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+.wcol {
+  height: 168px;
+  width: 84px;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  border-radius: 16px;
+  outline-offset: -2px;
+}
+.wcol::-webkit-scrollbar {
+  display: none;
+}
+.wcol.ap {
+  width: 72px;
+}
+.wpad,
+.witem {
+  height: 56px;
+}
+.witem {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  scroll-snap-align: center;
+  font-size: 2.4rem;
+  font-weight: 400;
+  color: var(--outline);
+  transition: color 0.12s;
+}
+.wcol.ap .witem {
+  font-size: 1.5rem;
+}
+.witem.sel {
+  font-weight: 600;
+  color: var(--on-surface);
+}
+.wsep {
+  font-size: 2.2rem;
+  font-weight: 600;
+  color: var(--on-surface);
+  padding-bottom: 6px;
+}
+/* bottom navigation */
+.nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  background: var(--surface-container);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.nav:empty {
+  display: none;
+}
+.nav .in {
+  max-width: 560px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  height: 76px;
+}
+.nav button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--on-surface-variant);
+  border-radius: 0;
+}
+.nav button::before {
+  display: none;
+}
+.nav .ind {
+  width: 60px;
+  height: 32px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  transition: background 0.2s;
+}
+.nav button[aria-current="page"] {
+  color: var(--on-surface);
+  font-weight: 700;
+}
+.nav button[aria-current="page"] .ind {
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+}
+body.hasnav main {
+  padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+}
+body.hasnav .snack {
+  bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+}
+/* loans */
+.loanbtns {
+  display: flex;
+  gap: 12px;
+  margin-top: 18px;
+}
+.loanbtns .fbtn {
+  flex: 1;
+  height: 64px;
+  border-radius: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    0 2px 6px rgba(0, 0, 0, 0.06);
+}
+.fbtn.loan {
+  background: var(--loan-bg);
+  color: var(--loan-fg);
+}
+.fbtn.lend {
+  background: var(--lend-bg);
+  color: var(--lend-fg);
+}
+.fbtn .emb {
+  width: 32px;
+  height: 32px;
+}
+.todayrow {
+  display: flex;
+  justify-content: flex-end;
+  margin: 10px 0 -4px;
+}
+.todaychip {
+  height: 32px;
+  padding: 0 12px 0 8px;
+  border-radius: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+}
+.todaychip .ic {
+  width: 18px;
+  height: 18px;
+}
+#ic-emo-box .field {
+  text-align: center;
+}
+#ic-emo-box #ic-emo {
+  display: block;
+  margin: 0 auto;
+}
+.st {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface-highest);
+  color: var(--on-surface-variant);
+}
+.st.active {
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+}
+.st.partly {
+  background: var(--tertiary-container);
+  color: var(--on-tertiary-container);
+}
+.st.overdue {
+  background: var(--spent-container);
+  color: var(--on-spent-container);
+}
+.st.cleared {
+  background: var(--got-container);
+  color: var(--on-got-container);
+}
+.bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--surface-highest);
+  overflow: hidden;
+  margin: 4px 0 4px;
+}
+.bar span {
+  display: block;
+  height: 100%;
+  background: var(--primary);
+  border-radius: 4px;
+}
+.sumcard {
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+  border-radius: 24px;
+  padding: 16px 18px;
+  margin-top: 4px;
+}
+.sumcard.owe {
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+}
+.sumcard .t {
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+.sumcard .big {
+  font-size: 1.7rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+/* settings rows + switch */
+.setrow {
+  display: flex;
+  flex-wrap: wrap; /* narrow and large text: the time and switch go below the title rather than break its words */
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+}
+.setrow + .setrow {
+  border-top: 1px solid var(--outline-variant);
+}
+.setrow .mid {
+  flex: 1 1 8em;
+  min-width: 8em;
+}
+.setrow .mid + * {
+  margin-left: auto;
+}
+.setrow .s {
+  font-size: 0.8rem;
+  color: var(--on-surface-variant);
+}
+.setrow .s.err {
+  color: var(--spent);
+}
+.setrow .btn {
+  width: auto;
+  flex: none;
+}
+.setrow .mid div {
+  overflow-wrap: anywhere;
+}
+/* a reminder's time in Settings */
+.fieldbtn.tbtn {
+  width: auto;
+  min-height: 48px;
+  gap: 6px;
+  flex: none;
+}
+/* Settings → Reminders: permissions Android was denied, one row each with a small Allow button */
+.rhealth {
+  margin: 0 0 10px;
+}
+.rh-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 14px 2px;
+}
+.rh-head svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: var(--spent);
+}
+.rhealth .setrow + .setrow,
+#pp-rows .setrow + .setrow {
+  border-top: 0;
+}
+.rhealth .btn,
+#pp-rows .btn {
+  height: 40px;
+  padding: 0 18px;
+}
+/* the first-open Permissions dialog: the same rows, flush with the dialog's text; "Allowed" replaces a row's button */
+#pp-rows .setrow {
+  padding: 10px 4px;
+}
+.pok {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  height: 40px;
+  font-weight: 600;
+  color: var(--on-surface-variant);
+}
+.pok .ic {
+  width: 18px;
+  height: 18px;
+}
+.dlg-act.end {
+  justify-content: flex-end;
+}
+/* Settings → Feel: vibration strength, a Material 3 discrete slider; faded and off while vibration is switched off.
+   --f = (level − 1) / 4. The 4px handle's centre is 2px + f·(100% − 4px), so it touches both ends; the tracks keep a
+   6px gap either side of it; the 5 stop dots sit inside the rounded track ends (6px … 100% − 6px). */
+.mslider {
+  position: relative;
+  height: 44px;
+  margin-top: 6px;
+  touch-action: pan-y;
+  cursor: pointer;
+}
+.ms-act,
+.ms-in {
+  position: absolute;
+  top: 14px;
+  height: 16px;
+  transition: width 0.12s cubic-bezier(0.2, 0, 0, 1);
+}
+.ms-act {
+  left: 0;
+  width: max(0px, calc(var(--f) * (100% - 4px) - 6px));
+  background: var(--primary);
+  border-radius: 8px 2px 2px 8px;
+}
+.ms-in {
+  right: 0;
+  width: max(0px, calc(100% - var(--f) * (100% - 4px) - 10px));
+  background: var(--secondary-container);
+  border-radius: 2px 8px 8px 2px;
+}
+.ms-thumb {
+  position: absolute;
+  top: 0;
+  left: calc(var(--f) * (100% - 4px));
+  width: 4px;
+  height: 44px;
+  border-radius: 2px;
+  background: var(--primary);
+  transition: left 0.12s cubic-bezier(0.2, 0, 0, 1);
+}
+.mslider.drag .ms-thumb {
+  transform: scaleX(0.5); /* M3: the handle narrows while held */
+}
+.ms-dot {
+  position: absolute;
+  top: 20px;
+  left: calc(4px + var(--i) * (100% - 12px) / 4);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+.ms-dot.on {
+  background: var(--on-primary);
+}
+.ms-dot.cur {
+  visibility: hidden;
+}
+.mslider.off {
+  pointer-events: none;
+}
+.hlevel .hends {
+  display: flex;
+  justify-content: space-between;
+}
+.hlevel.off {
+  opacity: 0.38;
+}
+/* a 52×32 track in a 48px-tall touch target: clear borders above and below, the outline drawn inside */
+.sw {
+  width: 52px;
+  height: 48px;
+  border: solid transparent;
+  border-width: 8px 0;
+  border-radius: 16px / 24px; /* the track inside comes out a 16px pill */
+  background: var(--surface-highest);
+  background-clip: padding-box;
+  box-shadow: inset 0 0 0 2px var(--outline);
+  flex: none;
+}
+.sw::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 8px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--outline);
+  transform: translateY(-50%);
+  transition: all 0.15s;
+}
+.sw[aria-checked="true"] {
+  background: var(--primary);
+  background-clip: padding-box;
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
+.sw[aria-checked="true"]::after {
+  left: 24px;
+  width: 24px;
+  height: 24px;
+  background: var(--on-primary);
+}
+.sheet.s2 {
+  z-index: 12;
+}
+.s2 .p {
+  height: 88%;
+}
+.qbar {
+  position: sticky;
+  top: -8px;
+  background: var(--surface-low);
+  padding: 4px 0 8px;
+  z-index: 2;
+}
+.fieldbtn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: 52px;
+  padding: 0 10px 0 14px;
+  border: 1px solid var(--outline);
+  border-radius: 12px;
+  text-align: left;
+}
+.fieldbtn span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fieldbtn .ic {
+  color: var(--on-surface-variant);
+}
+/* settings category grids */
+.cgrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  background: var(--surface-container);
+  border-radius: 20px;
+  padding: 8px 4px;
+}
+.tile,
+.tx {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.tile.placeholder {
+  opacity: 0.25;
+}
+.tx.placeholder {
+  opacity: 0.3;
+}
+.ghost.gh-row {
+  transform: none;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+}
+/* drag between sections (Assets / Liabilities) */
+.dropbox {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 64px;
+  margin-top: 8px;
+  border: 2px dashed var(--outline);
+  border-radius: 20px;
+  color: var(--on-surface-variant);
+  font-size: 0.9rem;
+  font-weight: 600;
+  opacity: 0.8;
+}
+.dropbox .ic {
+  width: 20px;
+  height: 20px;
+}
+.dropbox.dropok {
+  display: flex;
+}
+.dropbox.dropover {
+  border-style: solid;
+  border-color: var(--primary);
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+  opacity: 1;
+}
+/* motion: kept deliberately small and cheap: state layer on press, a soft flash on the row that changed, snackbar in */
+.flash {
+  animation: flash 0.7s ease-out;
+}
+/* the one deliberate flourish: a tapped tab's icon flips once like a coin */
+.nav .ic.flip {
+  animation: tabflip 0.42s cubic-bezier(0.2, 0, 0, 1);
+}
+@keyframes tabflip {
+  from {
+    transform: perspective(160px) rotateY(0);
+  }
+  to {
+    transform: perspective(160px) rotateY(360deg);
+  }
+}
+@keyframes flash {
+  from {
+    background: var(--secondary-container);
+  }
+  to {
+    background: transparent;
+  }
+}
+.snack {
+  animation: snackin 0.2s cubic-bezier(0.2, 0, 0, 1);
+}
+@keyframes snackin {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%);
+  }
+}
+/* Remove animations: no transitions at all (a tiny duration instead would give every element one, for every property,
+   so a size set from script, as by fitFigures() or fitCal(), couldn't be measured at once) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition: none !important;
+  }
+}
+.ghost {
+  position: fixed;
+  z-index: 30;
+  pointer-events: none;
+  transition: none;
+  transform: scale(1.1);
+  background: var(--surface-high);
+  border-radius: 16px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+  margin: 0;
+}
+/* a lifted category: no card behind it, just its icon, slightly enlarged (as while held), no glow */
+.ghost.cat {
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+.ghost.cat .ci {
+  transform: scale(1.14);
+  box-shadow: none;
+}
+.ghost.settle.cat .ci {
+  transform: none;
+  transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1);
+}
+/* a dropped ring tile gliding into its slot */
+.ghost.settle {
+  transition:
+    left 0.2s cubic-bezier(0.2, 0, 0, 1),
+    top 0.2s cubic-bezier(0.2, 0, 0, 1),
+    transform 0.2s cubic-bezier(0.2, 0, 0, 1),
+    box-shadow 0.2s;
+  transform: none;
+  box-shadow: none;
+}
+.tile-add .ci {
+  border: 2px dashed var(--outline);
+  color: var(--on-surface-variant);
+}
+.cprev {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 2rem;
+  margin: 0 auto 4px;
+}
+.dots {
+  display: flex;
+  flex-wrap: wrap;
+}
+.dot {
+  border-radius: 50%;
+}
+/* dialogs */
+.pop.scrim {
+  background: rgba(0, 0, 0, 0.32);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+html.lock,
+body.lock {
+  overflow: hidden;
+}
+.dialog {
+  overscroll-behavior: contain;
+  background: var(--surface-high);
+  border-radius: 28px;
+  padding: 16px;
+  width: 100%;
+  max-width: 360px;
+  max-height: 100%; /* a short window (split screen, landscape tablet): the dialog scrolls inside */
+  overflow-y: auto;
+  animation: fade 0.18s ease-out;
+}
+/* the smallest phones: a little more room, so a calendar's seven columns keep their 40px day circles */
+@media (max-width: 359px) {
+  .pop.scrim {
+    padding: 8px;
+  }
+  .dialog {
+    padding: 12px;
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.cal-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 12px 0 4px;
+}
+.cal-h b {
+  font-weight: 600;
+}
+.cal-wd,
+.wk {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+.cal-wd span {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--on-surface-variant);
+  padding: 6px 0;
+}
+.wk {
+  margin: 2px 0;
+}
+/* the cell spans its column (so a range band joins up) and is 48px tall to tap; the circle (--dd) is an ::after, and the
+   band is as tall as the circle */
+.dd {
+  --dd: min(40px, var(--row, 48px));
+  height: var(--row, 48px); /* less on a short window: fitCal() */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  border-radius: 0;
+  isolation: isolate;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.dd::before {
+  inset: 0;
+  margin: auto;
+  width: var(--dd);
+  height: var(--dd);
+  border-radius: 50%;
+}
+.dd::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: var(--dd);
+  height: var(--dd);
+  border-radius: 50%;
+  z-index: -1;
+}
+.dd.other {
+  color: var(--on-surface-variant);
+}
+.dd.now {
+  color: var(--primary);
+  font-weight: 600;
+}
+.dd.now::after {
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+.dd.in {
+  background: linear-gradient(var(--secondary-container), var(--secondary-container)) center / 100% var(--dd) no-repeat;
+  color: var(--on-secondary-container);
+}
+.dd.rs {
+  background: linear-gradient(90deg, transparent 50%, var(--secondary-container) 50%) center / 100% var(--dd) no-repeat;
+}
+.dd.re {
+  background: linear-gradient(90deg, var(--secondary-container) 50%, transparent 50%) center / 100% var(--dd) no-repeat;
+}
+.dd.rs.re {
+  background: none;
+}
+/* the band's days overlap by a pixel each side (circles and numbers stay put): no hairline between them where columns
+   fall between device pixels */
+.dd.in,
+.dd.rs,
+.dd.re {
+  margin: 0 -1px;
+}
+.dd.sel,
+.dd.rs,
+.dd.re {
+  color: var(--on-primary);
+}
+.dd.sel::after,
+.dd.rs::after,
+.dd.re::after {
+  background: var(--primary);
+  box-shadow: none;
+}
+.dd .dt {
+  position: absolute;
+  bottom: 5px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.7;
+}
+/* a swipe on the calendar scrolls a dialog too tall for the window; not on the Range tab, where it picks days */
+.cal {
+  touch-action: pan-y;
+}
+#pd.rg .cal {
+  touch-action: none;
+}
+/* a calendar in a dialog uses some of its padding: seven 48px columns in a 360px dialog (a 393px phone; 43px on a
+   360px one) */
+.dialog .cal {
+  margin: 0 -4px;
+}
+.mgrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+.mgrid button {
+  height: 48px;
+  border-radius: 24px;
+  font-weight: 500;
+}
+.mgrid button.now {
+  box-shadow: inset 0 0 0 1px var(--primary);
+  color: var(--primary);
+}
+.mgrid button.sel {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.dlg-act {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0 4px;
+  margin-top: 12px;
+}
+.dlg-act .btn {
+  width: auto;
+}
+
+/* Larger screens, by Material 3 window size class (the widths are RAIL_AT and PANES_AT in js/screens.js).
+   Medium, 600px+ (unfolded foldables, tablets upright): a wider column. */
+@media (min-width: 600px) {
+  main {
+    max-width: 640px;
+  }
+}
+/* A navigation rail on the left instead of the bottom bar: from 600px, and on a phone held sideways (body.rail, set
+   by render(), so an upright phone's keyboard never switches it) */
+body.rail.hasnav {
+  padding-left: 80px;
+}
+body.rail.hasnav main {
+  padding-bottom: 24px;
+}
+body.rail.hasnav .snack {
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+}
+body.rail .nav {
+  top: 0;
+  right: auto;
+  width: 80px;
+  padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px);
+}
+body.rail .nav .in {
+  height: 100%;
+  max-width: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+}
+body.rail .nav button {
+  height: 64px;
+}
+/* two panes (only rendered when wanted: 840px+, or a phone held sideways) */
+body.wide main {
+  max-width: 1080px;
+}
+.panes {
+  display: grid;
+  grid-template-columns: minmax(0, 11fr) minmax(0, 9fr);
+  gap: 32px;
+  align-items: start;
+}
+.panes.one {
+  grid-template-columns: minmax(0, 640px);
+  justify-content: center;
+}
+/* Expanded, 840px+ (tablets sideways, large foldables): sheets as centred dialogs, which settle on the calculator
+   keypad while it is open */
+@media (min-width: 840px) {
+  .sheet {
+    align-items: center;
+    padding: 24px;
+  }
+  .sheet .p {
+    border-radius: 28px;
+    max-height: 100%;
+  }
+  .sheet .handle {
+    display: none;
+  }
+  .sheet.calcing {
+    align-items: flex-end;
+    padding-bottom: 0;
+  }
+  .sheet.calcing .p {
+    border-radius: 28px 28px 0 0;
+  }
+}
+/* A phone held sideways (body.land): the ring alone on the left, staying in view while the right side (the buttons,
+   the balances and the entries) scrolls; sheets use the full height; the calculator keypad sits beside the form */
+body.land .panes {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+body.land .panes.one {
+  grid-template-columns: minmax(0, 640px);
+}
+/* the ring's pane is the window's height and centres it, so the spare room is shared above and below */
+body.land .panes.home > .pane:first-child {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+/* that full-height pane would make the page scroll by main's bottom padding: the right pane carries it instead */
+body.land.hasnav main {
+  padding-bottom: 0;
+}
+body.land .panes.home > .pane:last-child {
+  padding-bottom: 24px;
+}
+body.land .sheet {
+  padding: 0;
+}
+body.land .sheet .p {
+  max-height: 100%;
+}
+body.land .sheet .handle {
+  display: none;
+}
+body.land .calc {
+  top: 0;
+  bottom: 0;
+  left: auto;
+  right: 0;
+  width: min(46%, 380px);
+  max-width: none;
+  margin: 0;
+  border-radius: 20px 0 0 20px;
+  grid-template-rows: auto repeat(4, minmax(0, 1fr));
+  padding: calc(6px + env(safe-area-inset-top, 0px)) calc(10px + env(safe-area-inset-right, 0px))
+    calc(8px + env(safe-area-inset-bottom, 0px)) 10px;
+  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.22);
+}
+body.land .calc > button {
+  height: auto; /* the keys share the height; the bar's keyboard button keeps its size */
+}
+body.land .sheet.calcing {
+  justify-content: flex-start;
+  align-items: flex-end;
+  padding: 0;
+}
+body.land .sheet.calcing .p {
+  max-width: calc(100% - min(46%, 380px));
+  border-radius: 0 28px 0 0;
+}
+/* a month of days in the height a sideways phone has: rows as tall as six fit (48px at most, 34px at least), the
+   circle up to 40px; the scrim gives up some of its margin for them */
+body.land .dd {
+  --row: clamp(34px, (100vh - 84px) / 6, 48px);
+}
+body.land .wk {
+  margin: 0;
+}
+body.land .pop.scrim {
+  padding-block: 8px;
+}
+/* the date and period pickers: the calendar beside the rest, so a month fits the height without scrolling */
+body.land #dp,
+body.land #pd {
+  max-width: 640px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  grid-template-rows: auto auto 1fr auto;
+  column-gap: 24px;
+}
+body.land #dp {
+  grid-template-areas: "head cal" "calh cal" ". cal" "act cal";
+}
+body.land #pd {
+  grid-template-areas: "head cal" "calh cal" "hint cal" "act cal";
+}
+/* selectors written out: :is() is newer than WebView 87, which would drop these rules */
+body.land #dp > .dp-h,
+body.land #pd > .seg {
+  grid-area: head;
+  align-self: start;
+}
+body.land #dp > .cal-h,
+body.land #pd > .cal-h {
+  grid-area: calh;
+  margin: 8px 0 0;
+}
+body.land #dp > .cal,
+body.land #pd > .cal,
+body.land #pd > .mgrid {
+  grid-area: cal;
+}
+body.land #pd > .hint {
+  grid-area: hint;
+  align-self: center;
+}
+body.land #dp > .dlg-act,
+body.land #pd > .dlg-act {
+  grid-area: act;
+  align-self: end;
+}
+
+/* the snackbar rises above an open calculator keypad (--calc-h from calcKeepFieldVisible); on a sideways phone the
+   keypad is on the right, so it centres under the form instead */
+body.calcopen #snack .snack {
+  bottom: calc(var(--calc-h, 0px) + 12px);
+}
+body.land.calcopen #snack .snack {
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  left: calc((100% - min(46%, 380px)) / 2);
+  width: calc(100% - min(46%, 380px) - 32px);
+}
+
+/* a sheet or dialog takes the focus as it opens (layerFocus) without a ring of its own */
+[role="dialog"]:focus,
+[role="alertdialog"]:focus {
+  outline: none;
+}

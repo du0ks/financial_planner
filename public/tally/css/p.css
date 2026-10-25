@@ -1,0 +1,82 @@
+/* p.css — Prosperity's additions (p-app.js), on Tally's Material 3 colour roles so light and dark both follow. */
+
+/* Home: Available now, above Tally's Balance bar */
+.balbar.p-avail {
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+}
+.balbar.p-avail b {
+  font-size: 1.35rem;
+}
+.balbar.p-avail + .balbar {
+  margin-top: 8px;
+}
+
+/* a section title with its subtotal on the right */
+.sec.p-sec {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sec.p-sec b {
+  color: var(--on-surface);
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+/* the chain: total − … = net worth − … = available now */
+.card.p-chain {
+  padding: 6px 16px;
+}
+.p-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 7px 0;
+  font-size: 0.92rem;
+  color: var(--on-surface-variant);
+  text-align: left;
+  background: none;
+}
+.p-line b {
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--on-surface);
+}
+button.p-line span {
+  text-decoration: underline;
+  text-decoration-color: var(--outline-variant);
+  text-underline-offset: 3px;
+}
+.p-line.tot {
+  border-top: 1px solid var(--outline-variant);
+  margin-top: 2px;
+  padding-top: 9px;
+  color: var(--on-surface);
+  font-weight: 600;
+}
+.p-line.end b {
+  font-size: 1.1rem;
+  color: var(--primary);
+}
+
+/* the main currency, tappable, on the Net worth card */
+.p-curchip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--surface-highest);
+  color: var(--on-surface);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.p-warn {
+  color: var(--spent) !important;
+}
+.tx .a.p-debt {
+  color: var(--spent);
+}

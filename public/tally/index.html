@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- Everything is local except exchange rates and the gold price (p-fx.js); only the app's own scripts may run. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self'; connect-src https://cdn.jsdelivr.net https://latest.currency-api.pages.dev https://api.gold-api.com; base-uri 'none'; form-action 'none'"
+    />
+    <title>Tally · Prosperity</title>
+    <link rel="stylesheet" href="css/colors.css" />
+    <!-- the phone's wallpaper palette (Android 12+) overrides css/colors.css here; see js/theme.js -->
+    <style id="dyn"></style>
+    <link rel="stylesheet" href="css/app.css" />
+    <link rel="stylesheet" href="css/p.css" />
+  </head>
+  <body>
+    <main id="app"></main>
+    <nav class="nav" id="nav"></nav>
+    <div id="sheet"></div>
+    <div id="sheet2"></div>
+    <div id="pop"></div>
+    <div id="snack"></div>
+    <!-- Plain scripts sharing one global scope, loaded in order; js/main.js starts the app. No build step. -->
+    <script src="js/icons.js"></script>
+    <script src="js/core.js"></script>
+    <script src="js/currencies.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/theme.js"></script>
+    <script src="js/period.js"></script>
+    <script src="js/layers.js"></script>
+    <script src="js/emblems.js"></script>
+    <script src="js/calculator.js"></script>
+    <script src="js/ring.js"></script>
+    <script src="js/loans.js"></script>
+    <script src="js/sheets.js"></script>
+    <script src="js/summary.js"></script>
+    <script src="js/screens.js"></script>
+    <script src="js/bridge.js"></script>
+    <script src="js/backup.js"></script>
+    <script src="js/gestures.js"></script>
+    <script src="js/events.js"></script>
+    <script src="js/p-logic.js"></script>
+    <script src="js/p-fx.js"></script>
+    <script src="js/p-app.js"></script>
+    <script src="js/main.js"></script>
+  </body>
+</html>
