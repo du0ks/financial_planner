@@ -1,0 +1,6 @@
+// Cloudflare serves the web/ folder as it is (no server code). The build command removes web/tests first.
+{
+  "name": "prosperity",
+  "compatibility_date": "2026-09-01",
+  "assets": { "directory": "./web" }
+}
