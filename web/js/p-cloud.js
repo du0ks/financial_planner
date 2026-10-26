@@ -195,6 +195,7 @@ save = function () {
 };
 /* this notebook after a merge: kept on the device without marking it for another upload by itself */
 function pAdopt(data) {
+  dropUndo(); // an Undo on screen would put back its copy over what just came in
   S = migrate(data);
   tallySaveLocal();
   PM = null;
@@ -230,7 +231,7 @@ async function pPush() {
         pSetBase(null);
         continue;
       }
-      pAdopt(pMerge(base && base.data, JSON.parse(sent), remote.data));
+      pAdopt(pMerge(base && base.data, S, remote.data)); // S: what was sent and anything changed while waiting
       pSetBase({ rev: remote.rev, data: remote.data });
     }
   } catch (e) {
@@ -622,6 +623,7 @@ addEventListener("storage", e => {
   if (!pUser() || (e.key !== LS && e.key !== LS + ":base") || P_SYNC.pushing) return;
   const n = e.key === LS ? readNotebook(e.newValue || "") : null;
   if (n) {
+    dropUndo();
     S = n;
     PM = null;
   }

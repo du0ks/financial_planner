@@ -45,8 +45,13 @@ test("maps (budgets, settings, rates) merge key by key; skips by rule and month"
   assert.deepEqual(m.settings, { cur: "UAH", week: 0 });
   assert.deepEqual(m.skips, [{ rule: "r", month: "2026-11" }]);
 });
-test("the first sync on a device (no base) keeps everything from both", () => {
+test("the first sync on a device (no base) keeps everything from both, the cloud's version where they differ", () => {
   assert.equal(ids(pMerge(null, nb([t("x", 1)]), nb([t("y", 2)]))), "x:1,y:2");
+  // a device that started blank (offline at sign-in) mustn't reset the everyday currency or renamed categories
+  const m = pMerge(null, nb([t("new", 4)], { settings: { cur: "USD" }, cats: [{ id: "housing", name: "Housing" }] }), nb([t("x", 1)], { settings: { cur: "CZK" }, cats: [{ id: "housing", name: "Dorm" }] }));
+  assert.equal(ids(m), "new:4,x:1");
+  assert.equal(m.settings.cur, "CZK");
+  assert.equal(m.cats[0].name, "Dorm");
 });
 
 /* ---------- the old app's data ---------- */

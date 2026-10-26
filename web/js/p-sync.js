@@ -5,7 +5,8 @@
  *   added on either side                → kept
  *   deleted on one side, untouched on the other → deleted
  *   deleted on one side, edited on the other    → the edit is kept (nothing is lost silently)
- *   changed on both sides, differently  → this device's version
+ *   changed on both sides, differently  → this device's version; but the cloud's when this device has never synced
+ *                                         (its copy is a fresh start: blank settings and categories mustn't win)
  */
 "use strict";
 
@@ -15,21 +16,21 @@ const pSkipKey = k => k.rule + "|" + k.month;
 const pKeyOf = (name, x) => (name === "skips" ? pSkipKey(x) : x && x.id);
 const pSame = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
-/* one value: a, b, c are base, local, remote (undefined = absent) */
-function pPick(base, local, remote) {
+/* one value: base, local, remote (undefined = absent); first: no base at all (this device's first sync) */
+function pPick(base, local, remote, first) {
   const inB = base !== undefined,
     inL = local !== undefined,
     inR = remote !== undefined;
   if (inL && inR) {
     if (pSame(local, remote) || pSame(remote, base)) return { v: local };
     if (pSame(local, base)) return { v: remote };
-    return { v: local };
+    return { v: first ? remote : local };
   }
   if (inL) return !inB || !pSame(local, base) ? { v: local } : null; // remote deleted it: unless edited here, it goes
   if (inR) return !inB || !pSame(remote, base) ? { v: remote } : null;
   return null;
 }
-function pMergeList(name, base, local, remote) {
+function pMergeList(name, base, local, remote, first) {
   const idx = list => new Map((list || []).map(x => [pKeyOf(name, x), x]));
   const B = idx(base),
     L = idx(local),
@@ -41,25 +42,26 @@ function pMergeList(name, base, local, remote) {
     const k = pKeyOf(name, x);
     if (seen.has(k)) return;
     seen.add(k);
-    const p = pPick(B.get(k), L.get(k), R.get(k));
+    const p = pPick(B.get(k), L.get(k), R.get(k), first);
     if (p) out.push(p.v);
   });
   return out;
 }
-function pMergeMap(base, local, remote) {
+function pMergeMap(base, local, remote, first) {
   const out = {},
     keys = new Set([...Object.keys(local || {}), ...Object.keys(remote || {})]);
   keys.forEach(k => {
-    const p = pPick((base || {})[k], (local || {})[k], (remote || {})[k]);
+    const p = pPick((base || {})[k], (local || {})[k], (remote || {})[k], first);
     if (p) out[k] = p.v;
   });
   return out;
 }
-/* the merged notebook; base may be null (first time: union, this device winning) */
+/* the merged notebook; base may be null (first time: everything from both, the cloud's version where they differ) */
 function pMerge(base, local, remote) {
   const b = base || {},
+    first = !base,
     out = Object.assign({}, remote, local);
-  P_LISTS.forEach(n => (out[n] = pMergeList(n, b[n], local[n], remote[n])));
-  P_MAPS.forEach(n => (out[n] = pMergeMap(b[n], local[n], remote[n])));
+  P_LISTS.forEach(n => (out[n] = pMergeList(n, b[n], local[n], remote[n], first)));
+  P_MAPS.forEach(n => (out[n] = pMergeMap(b[n], local[n], remote[n], first)));
   return out;
 }
