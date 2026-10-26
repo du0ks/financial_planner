@@ -1004,9 +1004,9 @@ function pSidebar() {
     "<span>Shortcuts</span><kbd>?</kbd></button></div></div>"
   );
 }
-const tallyRender2 = render;
+const baseRender2 = render;
 render = function () {
-  tallyRender2();
+  baseRender2();
   const desk = pDesk();
   document.body.classList.toggle("desk", desk);
   if (desk) {

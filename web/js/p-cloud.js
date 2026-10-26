@@ -185,9 +185,9 @@ function pSyncState(state, error) {
   if (el) el.outerHTML = pSyncBadge();
 }
 /* every local save marks the notebook to go up; a burst of changes goes in one save */
-const tallySaveLocal = save;
+const saveLocal = save;
 save = function () {
-  tallySaveLocal();
+  saveLocal();
   if (!pUser()) return;
   pSetDirty(true);
   clearTimeout(P_SYNC.timer);
@@ -197,7 +197,7 @@ save = function () {
 function pAdopt(data) {
   dropUndo(); // an Undo on screen would put back its copy over what just came in
   S = migrate(data);
-  tallySaveLocal();
+  saveLocal();
   PM = null;
   if (!$("#sheet").innerHTML) render();
 }
@@ -531,15 +531,15 @@ function pSyncBadge() {
   return '<span class="p-sync ' + s + '" role="status" title="' + esc(text) + '">' + esc(text) + "</span>";
 }
 /* signed out: the sign-in page instead of Home */
-const tallyHomeViewC = homeView;
+const baseHomeView = homeView;
 homeView = function () {
   if (!pSignedIn()) return pAuthView();
-  return tallyHomeViewC();
+  return baseHomeView();
 };
 /* Settings: who you are, how saving is going, the old app's data, and signing out */
-const tallySettingsViewC = settingsView;
+const baseSettingsView = settingsView;
 settingsView = function () {
-  const h = tallySettingsViewC(),
+  const h = baseSettingsView(),
     i = h.indexOf("</header>") + "</header>".length,
     u = pUser();
   const mine = pIsDemo()
