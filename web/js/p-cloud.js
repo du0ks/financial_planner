@@ -42,26 +42,30 @@ function pUseNotebook() {
   saveSeq = 0;
   loadState();
   PM = null;
-  P_SYNC.dirty = (() => {
-    try {
-      return localStorage.getItem(LS + ":dirty") === "1";
-    } catch (e) {
-      return false;
-    }
-  })();
+  pFromDevice();
 }
-const pBase = () => {
-  try {
-    return JSON.parse(localStorage.getItem(LS + ":base") || "null");
-  } catch (e) {
-    return null;
-  }
-};
+/* The cloud copy this window last saved or took in (rev and data), kept in memory per window as well as on the device
+   for the next start. Two windows of the app on one device (two tabs, or a tab and the installed app) are two devices
+   to the cloud: a window left open on an old copy can't pass the revision check on the strength of another window's
+   save, so its save is merged instead of overwriting newer changes. */
+let P_BASE = null;
+const pBase = () => P_BASE;
 const pSetBase = b => {
+  P_BASE = b;
   try {
     localStorage.setItem(LS + ":base", JSON.stringify(b));
   } catch (e) {}
 };
+/* this window's base and unsent flag, from what the device holds */
+function pFromDevice() {
+  try {
+    P_BASE = JSON.parse(localStorage.getItem(LS + ":base") || "null");
+    P_SYNC.dirty = localStorage.getItem(LS + ":dirty") === "1";
+  } catch (e) {
+    P_BASE = null;
+    P_SYNC.dirty = false;
+  }
+}
 const pSetDirty = on => {
   P_SYNC.dirty = on;
   try {
@@ -593,6 +597,36 @@ document.addEventListener("keydown", e => {
     e.preventDefault();
     pPassSave();
   }
+});
+
+/* Another window of the app on this device saved: this one takes that notebook and its cloud copy at once, so it never
+   shows (or saves) an old copy. Signing in or out there does the same here. */
+addEventListener("storage", e => {
+  if (e.key === P_SESSION_KEY) {
+    const who = v => {
+      try {
+        const x = JSON.parse(v || "null");
+        return x ? (x.user ? x.user.id : x.demo ? "demo" : "") : "";
+      } catch (er) {
+        return "";
+      }
+    };
+    if (who(e.oldValue) === who(e.newValue)) return; // only a refreshed token
+    closeSheet();
+    pUseNotebook();
+    V.screen = "home";
+    render();
+    if (pUser()) pFirstSync();
+    return;
+  }
+  if (!pUser() || (e.key !== LS && e.key !== LS + ":base") || P_SYNC.pushing) return;
+  const n = e.key === LS ? readNotebook(e.newValue || "") : null;
+  if (n) {
+    S = n;
+    PM = null;
+  }
+  pFromDevice();
+  if (n && !$("#sheet").innerHTML) render();
 });
 
 /* start-up: before loadState (main.js), so the right person's notebook loads */

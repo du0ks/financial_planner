@@ -34,26 +34,37 @@ export async function launch({ width = 390, height = 844, port = 9300 + Math.flo
   await send("session.subscribe", { events: ["log.entryAdded"] });
   const { context } = await send("browsingContext.create", { type: "tab" });
   await send("browsingContext.setViewport", { context, viewport: { width, height }, devicePixelRatio: 2 }).catch(e => console.log("viewport:", e.message));
-  const api = {
-    logs,
-    async go(url) { await send("browsingContext.navigate", { context, url, wait: "complete" }); },
-    async js(expr) {
-      const r = await send("script.evaluate", { expression: expr, target: { context }, awaitPromise: true, resultOwnership: "none" });
-      if (r.type === "exception") throw new Error("page: " + (r.exceptionDetails && r.exceptionDetails.text));
-      return r.result && "value" in r.result ? r.result.value : undefined;
-    },
-    async click(sel) {
-      const ok = await api.js(`(() => { const el = document.querySelector(${JSON.stringify(sel)}); if (!el) return false; el.scrollIntoView({block:"center"}); const r = el.getBoundingClientRect(); el.dispatchEvent(new MouseEvent("click", {bubbles:true, cancelable:true, detail:1, clientX:r.left + r.width/2, clientY:r.top + r.height/2})); return true; })()`);
-      if (!ok) throw new Error("no element " + sel);
-      await new Promise(r => setTimeout(r, 400));
-    },
-    async shot(file, full = false) {
-      const r = await send("browsingContext.captureScreenshot", { context, origin: full ? "document" : "viewport" });
-      fs.writeFileSync(file, Buffer.from(r.data, "base64"));
-    },
-    async wait(ms) { await new Promise(r => setTimeout(r, ms)); },
-    async close() { try { await send("session.end"); } catch (e) {} ws.close(); ff.kill(); },
+  /* one tab (browsing context); more tabs in the same browser share its storage, like two windows of the app */
+  const tabApi = context => {
+    const t = {
+      async go(url) { await send("browsingContext.navigate", { context, url, wait: "complete" }); },
+      async js(expr) {
+        const r = await send("script.evaluate", { expression: expr, target: { context }, awaitPromise: true, resultOwnership: "none" });
+        if (r.type === "exception") throw new Error("page: " + (r.exceptionDetails && r.exceptionDetails.text));
+        return r.result && "value" in r.result ? r.result.value : undefined;
+      },
+      async click(sel) {
+        const ok = await t.js(`(() => { const el = document.querySelector(${JSON.stringify(sel)}); if (!el) return false; el.scrollIntoView({block:"center"}); const r = el.getBoundingClientRect(); el.dispatchEvent(new MouseEvent("click", {bubbles:true, cancelable:true, detail:1, clientX:r.left + r.width/2, clientY:r.top + r.height/2})); return true; })()`);
+        if (!ok) throw new Error("no element " + sel);
+        await new Promise(r => setTimeout(r, 400));
+      },
+      async shot(file, full = false) {
+        const r = await send("browsingContext.captureScreenshot", { context, origin: full ? "document" : "viewport" });
+        fs.writeFileSync(file, Buffer.from(r.data, "base64"));
+      },
+      async wait(ms) { await new Promise(r => setTimeout(r, ms)); },
+    };
+    return t;
   };
+  const api = Object.assign(tabApi(context), {
+    logs,
+    async tab() {
+      const c = (await send("browsingContext.create", { type: "tab" })).context;
+      await send("browsingContext.setViewport", { context: c, viewport: { width, height }, devicePixelRatio: 2 }).catch(() => {});
+      return tabApi(c);
+    },
+    async close() { try { await send("session.end"); } catch (e) {} ws.close(); ff.kill(); },
+  });
   return api;
 }
 

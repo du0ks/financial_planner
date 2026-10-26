@@ -123,6 +123,28 @@ await step("offline", async () => {
   ok("saved once back online", await until(A, "!P_SYNC.dirty && P_SYNC.state === 'saved'"));
   ok("the cloud has it", (await row(ME)).data.txns.some(t => t.note === "Offline A3"));
 });
+await step("two windows of the app on one device", async () => {
+  /* a second tab in the same browser, as when the app is open in a tab and in its installed window */
+  const A2 = await A.tab();
+  await A2.go(APP);
+  ok("the second window loads the notebook", await until(A2, "P_SYNC.state === 'saved' && S.txns.some(t => t.note === 'Offline A3')"));
+  await A.js("acc('acct-card').c = '#123456'; commit(); true");
+  ok("first window saved", await until(A, "!P_SYNC.dirty && P_SYNC.state === 'saved'") && (await row(ME)).data.accounts.find(a => a.id === "acct-card").c === "#123456");
+  ok("the other window shows it at once", await until(A2, "acc('acct-card').c === '#123456'"));
+  /* the left-open window saves something of its own (as fetching a past day's rates does) */
+  await A2.js("S.fxDays['2026-01-02'] = {USD: 1}; save(); true");
+  ok("its save keeps the first window's change", await until(A2, "!P_SYNC.dirty && P_SYNC.state === 'saved'") && (await row(ME)).data.accounts.find(a => a.id === "acct-card").c === "#123456");
+  /* a window that missed the news (asleep): its old copy must not overwrite newer changes */
+  await A2.js("window.__stale = {s: JSON.stringify(S), b: JSON.stringify(P_BASE)}; true");
+  await A.js("acc('acct-card').c = '#654321'; commit(); true");
+  await until(A, "!P_SYNC.dirty && P_SYNC.state === 'saved'");
+  await A2.js("S = migrate(JSON.parse(__stale.s)); P_BASE = JSON.parse(__stale.b); S.fxDays['2026-01-03'] = {USD: 1}; save(); true");
+  ok("a window with an old copy merges instead of overwriting", await until(A2, "!P_SYNC.dirty && P_SYNC.state === 'saved'"));
+  const r = await row(ME);
+  ok("the cloud keeps the newer change and the old window's own", r.data.accounts.find(a => a.id === "acct-card").c === "#654321" && r.data.fxDays["2026-01-03"], r.data.accounts.find(a => a.id === "acct-card").c);
+  ok("and the old window catches up", await until(A2, "acc('acct-card').c === '#654321'"));
+  await A2.js("close(); true").catch(() => {});
+});
 await step("sign out", async () => {
   await A.click('#nav [data-v="home"]');
   await A.click('[data-act="go"][data-v="settings"]');
