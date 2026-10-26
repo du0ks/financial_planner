@@ -19,7 +19,7 @@ the tests and publish `web/`. The old GitHub Pages address only sends people the
 
 - **One everyday currency** (Settings → Region): budgets, totals, the Home ring and the spending summary are in it.
   Accounts, gold and recurring rules keep their own currency; every entry converts at the rate of its own day.
-- **Available now** = money you can use + touchable gold − card debt − loans you owe − bills before your next income.
+- **Available now** = money you can use + touchable gold − card debt − loans you owe: the money as it stands today (bills count once paid).
   **Net worth** = everything you own − card debt − loans you owe. An account counts as money you can use unless its
   "Counts as money I can use" switch is off (savings, a fund, a currency you keep).
 - **Budgets**: one monthly amount per spending category; spending at its own day's rate, bills still to come at

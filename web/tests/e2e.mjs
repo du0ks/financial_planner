@@ -37,11 +37,10 @@ const chainCheck = `(() => {
   });
   S.assets.forEach(x => { if (x.kind === "gold") (x.touch ? (touch += pGoldValue(x.mg, cur, R)) : (keep += pGoldValue(x.mg, cur, R))); else other += c(x.value, x.currency); });
   S.loans.forEach(l => { const i = loanInfo(l); if (i.open) { if (l.kind === "lend") other += c(i.left, i.cur); else owe += c(i.left, i.cur); } });
-  const bills = pPending(S.rules, S.txns, S.skips, today()).bills.reduce((q, o) => q + c(o.rule.amount, o.rule.currency), 0);
   const w = pModel().w;
   return JSON.stringify({
     net: rd(w.netWorth) - rd(spend + invest + touch + keep + other - card - owe),
-    avail: rd(w.availableNow) - rd(spend + touch - card - owe - bills),
+    avail: rd(w.availableNow) - rd(spend + touch - card - owe),
     total: rd(w.total) - rd(spend + invest + touch + keep + other),
   });
 })()`;
@@ -192,7 +191,8 @@ await step("recurring: confirm and skip", async () => {
   await b.wait(300);
   ok("confirmed entry is linked to its rule", await b.js("S.txns.some(t => t.rule && t.note === 'Gym' && t.amount === 450)"));
   const avail1 = await b.js("pModel().w.availableNow");
-  ok("confirming a bill doesn't count it twice (Available now unchanged, to the haléř)", Math.abs(Math.round(avail0 * 100) - Math.round(avail1 * 100)) <= 1, avail0 + " → " + avail1);
+  const paid = await b.js("(() => { const t = S.txns.find(t => t.rule && t.note === 'Gym'); return pConv(t.amount, acc(t.account).currency, pCur(), pRates()); })()");
+  ok("Available now drops by the bill once it is paid, not before (to the haléř)", Math.abs(Math.round((avail0 - paid) * 100) - Math.round(avail1 * 100)) <= 1, avail0 + " − " + paid + " → " + avail1);
   const ai = await b.js("(() => { const o = pPending(S.rules,S.txns,S.skips,today()).bills.find(o=>o.rule.id==='ai'); return o ? o.rule.id + '|' + o.month : ''; })()");
   if (ai) {
     await b.click('[data-act="p-confirm"][data-v="' + ai + '"]');

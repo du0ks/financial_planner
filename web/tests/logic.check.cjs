@@ -59,7 +59,7 @@ const loans = [
 ];
 
 test("Everything I own: every item once, in its group", () => {
-  const w = L.pWorth({ cur: "TRY", rates, accounts, assets, loans, bills: 0 });
+  const w = L.pWorth({ cur: "TRY", rates, accounts, assets, loans });
   const g = Object.fromEntries(w.groups.map(x => [x.key, x]));
   assert.deepEqual(w.groups.map(x => x.key), ["spendable", "gold", "investments", "other"]);
   assert.deepEqual(g.spendable.items.map(i => i.id), ["bank", "wise", "cash", "uah", "icard"]);
@@ -73,15 +73,15 @@ test("Everything I own: every item once, in its group", () => {
   assert.equal(cents(w.goldTouchable + w.goldUntouchable), cents(g.gold.total));
 });
 
-test("the chain: total − debts = net worth; − what you can't use − bills = available now", () => {
+test("the chain: total − debts = net worth; − what you can't use = available now", () => {
   for (const cur of ["TRY", "CZK", "EUR", "UAH", "USD"]) {
-    const w = L.pWorth({ cur, rates, accounts, assets, loans, bills: L.pConv(1234.56, "TRY", cur, rates) });
+    const w = L.pWorth({ cur, rates, accounts, assets, loans });
     const g = Object.fromEntries(w.groups.map(x => [x.key, x.total]));
     for (const x of w.groups) assert.equal(cents(x.total), x.items.reduce((q, i) => q + cents(i.value), 0), cur + " " + x.key);
     assert.equal(cents(w.total), cents(g.spendable + g.gold + g.investments + g.other));
     assert.equal(cents(w.netWorth), cents(w.total - w.cardDebt - w.owe));
-    // what is left is exactly the money you can use and the touchable gold, less debts and bills
-    assert.equal(cents(w.availableNow), cents(g.spendable + w.goldTouchable - w.cardDebt - w.owe - w.bills));
+    // what is left is exactly the money you can use and the touchable gold, less debts
+    assert.equal(cents(w.availableNow), cents(g.spendable + w.goldTouchable - w.cardDebt - w.owe));
     let run = 0;
     for (const s of w.chain) {
       if (s.total && s.key !== "assets") assert.equal(cents(s.value), cents(run), cur + " " + s.key);
@@ -89,7 +89,7 @@ test("the chain: total − debts = net worth; − what you can't use − bills =
     }
     assert.deepEqual(w.missing, []);
   }
-  assert.ok(L.pWorth({ cur: "GBP", rates, accounts, assets, loans, bills: 0 }).missing.includes("TRY"));
+  assert.ok(L.pWorth({ cur: "GBP", rates, accounts, assets, loans }).missing.includes("TRY"));
 });
 
 test("recurring: occurrences, next income, and bills waiting before it", () => {

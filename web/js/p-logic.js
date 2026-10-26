@@ -44,15 +44,16 @@ const pGoldValue = (mg, cur, rates) => {
 };
 
 /* ---------- Everything I own, and the chain ----------
-   in: { cur, rates, accounts (active, each with .bal and .avail), assets, loans: [{kind, left, cur}], bills (in cur) }
+   in: { cur, rates, accounts (active, each with .bal and .avail), assets, loans: [{kind, left, cur}] }
    Groups — every item once, with its own amount and its value in `cur`:
      spendable    accounts that count as money you can use, and a card paid past zero
      gold         gold, touchable or not (split for the chain)
      investments  accounts that don't count as money you can use (savings, a fund)
      other        other things you own, and money you lent that is still owed to you
    Chain (each step one subtraction):
-     everything I own − card debt − loans I owe                                   = net worth
-     net worth − untouchable gold − investments − other − bills before next income = available now */
+     everything I own − card debt − loans I owe              = net worth
+     net worth − untouchable gold − investments − other      = available now
+   Available now is the money as it stands today: bills and other plans are not taken off before they are paid. */
 function pWorth(o) {
   const missing = new Set(),
     conv = (v, c) => {
@@ -96,9 +97,8 @@ function pWorth(o) {
     total = r(groups.reduce((q, x) => q + x.total, 0));
   cardDebt = r(cardDebt);
   owe = r(owe);
-  const bills = r(o.bills || 0),
-    netWorth = r(total - cardDebt - owe),
-    availableNow = r(netWorth - goldUntouchable - by.investments - by.other - bills);
+  const netWorth = r(total - cardDebt - owe),
+    availableNow = r(netWorth - goldUntouchable - by.investments - by.other);
   const chain = [
     { key: "assets", value: total, total: true },
     { key: "cards", value: -cardDebt },
@@ -107,10 +107,9 @@ function pWorth(o) {
     { key: "goldUntouchable", value: -goldUntouchable },
     { key: "investments", value: -by.investments },
     ...(by.other ? [{ key: "other", value: -by.other }] : []),
-    { key: "bills", value: -bills },
     { key: "availableNow", value: availableNow, total: true },
   ];
-  return { groups, goldTouchable, goldUntouchable, total, cardDebt, owe, bills, netWorth, availableNow, chain, missing: [...missing] };
+  return { groups, goldTouchable, goldUntouchable, total, cardDebt, owe, netWorth, availableNow, chain, missing: [...missing] };
 }
 
 /* ---------- recurring income and bills ----------

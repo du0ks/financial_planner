@@ -206,14 +206,7 @@ function pModel() {
       .filter(x => x.i.open)
       .map(x => ({ id: x.l.id, kind: x.l.kind, name: loanWho(x.l), left: x.i.left, cur: x.i.cur, loan: x.l })),
     pend = pPending(pRules(), S.txns, pSkips(), today());
-  let billsMissing = false;
-  const bills = pend.bills.reduce((q, o) => {
-    const v = pConv(o.rule.amount, o.rule.currency, cur, rates);
-    if (v === null) billsMissing = true;
-    return q + (v || 0);
-  }, 0);
-  const w = pWorth({ cur, rates, accounts, assets: S.assets, loans, bills });
-  if (billsMissing) w.missing.push("rates");
+  const w = pWorth({ cur, rates, accounts, assets: S.assets, loans });
   return (PM = { cur, rates, b, accounts, loans, pend, w });
 }
 const ratesLine = () =>
@@ -298,14 +291,13 @@ const P_STEP = {
   goldUntouchable: "Untouchable gold",
   investments: "Savings & reserves",
   other: "Other things & money owed to me",
-  bills: "Bills before next income",
   availableNow: "Available now",
 };
 const P_STEP_TAB = { cards: "liabs", owe: "liabs", goldUntouchable: "assets", investments: "assets", other: "assets" };
 function chainHTML(m) {
   return m.w.chain
     .map(s => {
-      const label = s.key === "bills" && m.pend.payday ? P_STEP.bills + " (" + dayLabel(m.pend.payday) + ")" : P_STEP[s.key],
+      const label = P_STEP[s.key],
         tab = P_STEP_TAB[s.key] && V.screen !== P_STEP_TAB[s.key] ? P_STEP_TAB[s.key] : null,
         tag = tab ? "button" : "div";
       return (
@@ -335,7 +327,7 @@ function pChainSheet() {
       chainHTML(m) +
       '</div><p class="hint">' +
       esc(ratesLine()) +
-      ". Bills are the recurring ones still to pay before your next income.</p>"
+      ". Available now is your money as it stands today: bills count once they are paid.</p>"
   );
 }
 
