@@ -79,9 +79,9 @@ body:not(.rail) .nav .in {
   color: var(--on-surface-variant);
 }
 
-/* the chain: total − … = net worth − … = available now */
+/* the chain: totals in bold, steps in italics; a line under Net worth and above Available now */
 .card.p-chain {
-  padding: 6px 16px;
+  padding: 8px 16px;
 }
 .p-line {
   display: flex;
@@ -96,25 +96,51 @@ body:not(.rail) .nav .in {
   background: none;
 }
 .p-line b {
-  font-weight: 600;
+  font-weight: 500;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
   color: var(--on-surface);
 }
-button.p-line span {
-  text-decoration: underline;
-  text-decoration-color: var(--outline-variant);
-  text-underline-offset: 3px;
+.p-line.step span {
+  font-style: italic;
+}
+button.p-line {
+  cursor: pointer;
+  border-radius: 6px;
+}
+button.p-line:hover span,
+button.p-line:focus-visible span {
+  color: var(--on-surface);
 }
 .p-line.tot {
-  border-top: 1px solid var(--outline-variant);
-  margin-top: 2px;
-  padding-top: 9px;
+  font-size: 1rem;
+  font-weight: 700;
   color: var(--on-surface);
-  font-weight: 600;
+}
+.p-line.tot b {
+  font-weight: 700;
+}
+.p-line.net {
+  border-bottom: 1px solid var(--outline-variant);
+  padding-bottom: 10px;
+  margin-bottom: 3px;
+}
+.p-line.end {
+  border-top: 1px solid var(--outline-variant);
+  margin-top: 3px;
+  padding-top: 10px;
 }
 .p-line.end b {
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   color: var(--primary);
+}
+.p-line.note {
+  padding-top: 0;
+  font-size: 0.82rem;
+}
+.p-line.note b {
+  font-weight: 400;
+  color: var(--on-surface-variant);
 }
 
 /* "You owe" and an overspent budget: a deep red card */

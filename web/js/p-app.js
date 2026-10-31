@@ -294,8 +294,10 @@ const P_STEP = {
   availableNow: "Available now",
 };
 const P_STEP_TAB = { cards: "liabs", owe: "liabs", goldUntouchable: "assets", investments: "assets", other: "assets" };
+/* totals in bold, the steps between them in italics with a minus; a line under Net worth and above Available now;
+   under Available now, the touchable gold that is part of it */
 function chainHTML(m) {
-  return m.w.chain
+  const lines = m.w.chain
     .map(s => {
       const label = P_STEP[s.key],
         tab = P_STEP_TAB[s.key] && V.screen !== P_STEP_TAB[s.key] ? P_STEP_TAB[s.key] : null,
@@ -304,11 +306,12 @@ function chainHTML(m) {
         "<" +
         tag +
         (tab ? ' data-act="p-tab" data-v="' + tab + '"' : "") +
-        ' class="p-line' +
-        (s.total ? " tot" : "") +
+        ' class="p-line ' +
+        (s.total ? "tot" : "step") +
+        (s.key === "netWorth" ? " net" : "") +
         (s.key === "availableNow" ? " end" : "") +
         '"><span>' +
-        (s.total ? "= " : "− ") +
+        (s.total ? "" : "− ") +
         esc(label) +
         "</span><b>" +
         esc(money(s.total ? s.value : Math.abs(s.value), m.cur)) +
@@ -318,6 +321,10 @@ function chainHTML(m) {
       );
     })
     .join("");
+  const gold = m.w.goldTouchable
+    ? '<div class="p-line step note"><span>of which touchable gold</span><b>' + esc(money(m.w.goldTouchable, m.cur)) + "</b></div>"
+    : "";
+  return lines + gold;
 }
 function pChainSheet() {
   const m = pModel();
